@@ -27,6 +27,9 @@ from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
 from kivy.uix.label import Label
 from kivy.multistroke import Recognizer
 
+from kivy.graphics import Ellipse, Color, Line
+import numpy as np
+
 # Local libraries
 from historymanager import GestureHistoryManager
 from gesturedatabase import GestureDatabase
@@ -40,8 +43,28 @@ class MainMenu(GridLayout):
 class MultistrokeAppSettings(MultistrokeSettingsContainer):
     pass
 
+
 class NotePadSurface(GestureSurface):
-    pass
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.lines = []
+        self.spacing = 1/16
+        with self.canvas.before:
+            Color(0, 0, 0, 1)
+            for i in range(0, 5):
+                self.lines.append(Line(points=self.get_points(i)))
+
+    def get_height(self, line_number):
+        return self.size[1] * (1/2 - (line_number - 2) * self.spacing)
+
+    def get_points(self, line_number):
+        height = self.get_height(line_number)
+        return [0, height, self.size[0], height]
+
+    def on_size(self, foo, bar):
+        for i, line in enumerate(self.lines):
+            line.points = self.get_points(i)
+
 
 class MultistrokeApp(App):
 
@@ -65,6 +88,15 @@ class MultistrokeApp(App):
 
     def handle_gesture_complete(self, surface, g, *l):
         result = self.recognizer.recognize(g.get_vectors())
+        # TODO: temp visualization
+        points = np.array(g.get_vectors())
+        center = points.mean(axis=(0, 1))
+        print(points.shape, center)
+        with self.surface.canvas:
+            Color(0, 0, 1, 1)
+            Ellipse(pos=center - 10, size=(20, 20))
+        print(self.surface.canvas.before)
+        # end tmp
         result._gesture_obj = g
         result.bind(on_complete=self.handle_recognize_complete)
 
