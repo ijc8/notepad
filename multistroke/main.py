@@ -40,6 +40,8 @@ class MainMenu(GridLayout):
 class MultistrokeAppSettings(MultistrokeSettingsContainer):
     pass
 
+class NotePadSurface(GestureSurface):
+    pass
 
 class MultistrokeApp(App):
 
@@ -80,6 +82,7 @@ class MultistrokeApp(App):
             text = 'Name: [b]%s[/b]\nScore: [b]%f[/b]\nDistance: [b]%f[/b]' % (
                    best['name'], best['score'], best['dist'])
 
+        text = f'[color=#000000]{text}[/color]'
         g = result._gesture_obj
         g._result_label = Label(text=text, markup=True, size_hint=(None, None),
                                 center=(g.bbox['minx'], g.bbox['miny']))
@@ -93,7 +96,7 @@ class MultistrokeApp(App):
         self.recognizer = Recognizer()
 
         # Setup the GestureSurface and bindings to our Recognizer
-        surface = GestureSurface(line_width=2, draw_bbox=True,
+        surface = NotePadSurface(line_width=2, draw_bbox=True,
                                  use_random_color=True)
         surface_screen = Screen(name='surface')
         surface_screen.add_widget(surface)

@@ -89,6 +89,8 @@ class GestureDatabase(GridLayout):
         self.redraw_all = Clock.create_trigger(self._redraw_gesture_list, 0)
         self.export_popup.ids.save_btn.bind(on_press=self.perform_export)
         self.import_popup.ids.filechooser.bind(on_submit=self.perform_import)
+        self.recognizer.import_gesture(filename='model/basic.kg')
+        self.import_gdb()
 
     def import_gdb(self):
         self.gdict = {}
