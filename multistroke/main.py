@@ -29,6 +29,7 @@ from kivy.multistroke import Recognizer
 
 from kivy.graphics import Ellipse, Color, Line
 import numpy as np
+import fluidsynth
 
 # Local libraries
 from historymanager import GestureHistoryManager
@@ -137,7 +138,7 @@ class MultistrokeApp(App):
             points = np.array(sum(g.get_vectors(), []))
             points = points[util.reject_outliers(points[:, 1])]
             note_height = points[:, 1].mean()
-            pitches = 'E F G A B C D e f'.split()[::-1]
+            pitches = [64, 65, 67, 69, 71, 72, 74, 76, 77][::-1]
             pitch = pitches[min(range(0, 9), key=lambda i: np.abs(self.surface.get_height(i / 2) - note_height))]
             durations = {'quarternote': 1/4, 'halfnote': 1/2, 'wholenote': 1}
             self.notes.append(Note(pitch, durations[best['name']], g))
@@ -146,11 +147,23 @@ class MultistrokeApp(App):
                 if isinstance(i0, Color) and isinstance(i1, Line):
                     i0.rgba = (0, 0, 0, 1)
             print([(note.pitch, int(note.duration * 4)) for note in self.notes])
+            t = 0
+            for note in self.notes:
+                t_duration = note.duration * 1000
+                self.seq.note_on(time=int(t), absolute=False, channel=0, key=note.pitch, dest=self.synthID, velocity=80)
+                t += t_duration
         self.surface.add_widget(g._result_label)
 
     def build(self):
         # TODO: __init__
         self.notes = []
+        self.seq = fluidsynth.Sequencer()
+        self.fs = fluidsynth.Synth()
+        self.fs.start('alsa')
+        sfid = self.fs.sfload("/usr/share/sounds/sf2/FluidR3_GM.sf2")
+        self.fs.program_select(0, sfid, 0, 0)
+        self.synthID = self.seq.register_fluidsynth(self.fs)
+
         # Setting NoTransition breaks the "history" screen! Possibly related
         # to some inexplicable rendering bugs on my particular system
         self.manager = ScreenManager(transition=SlideTransition(
