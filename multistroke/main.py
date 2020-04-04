@@ -35,6 +35,7 @@ from historymanager import GestureHistoryManager
 from gesturedatabase import GestureDatabase
 from settings import MultistrokeSettingsContainer
 
+import util
 
 class MainMenu(GridLayout):
     pass
@@ -89,13 +90,16 @@ class MultistrokeApp(App):
     def handle_gesture_complete(self, surface, g, *l):
         result = self.recognizer.recognize(g.get_vectors())
         # TODO: temp visualization
-        points = np.array(g.get_vectors())
-        center = points.mean(axis=(0, 1))
-        print(points.shape, center)
+        points = np.array(sum(g.get_vectors(), []))
+        center = points.mean(axis=0)
+        points = points[util.reject_outliers(points[:, 1], verbose=True)]
+        new_center = points.mean(axis=0)
+        radius = 5
         with self.surface.canvas:
-            Color(0, 0, 1, 1)
-            Ellipse(pos=center - 10, size=(20, 20))
-        print(self.surface.canvas.before)
+            Color(1, 1, 1, 1)
+            Ellipse(pos=center - radius, size=(radius * 2, radius * 2))
+            Color(0, 0, 0, 1)
+            Ellipse(pos=new_center - radius, size=(radius * 2, radius * 2))
         # end tmp
         result._gesture_obj = g
         result.bind(on_complete=self.handle_recognize_complete)
@@ -118,6 +122,14 @@ class MultistrokeApp(App):
         g = result._gesture_obj
         g._result_label = Label(text=text, markup=True, size_hint=(None, None),
                                 center=(g.bbox['minx'], g.bbox['miny']))
+        if best['name'] and best['name'].endswith('note'):
+            print("dude it's a note")
+            points = np.array(sum(g.get_vectors(), []))
+            points = points[util.reject_outliers(points[:, 1])]
+            note_height = points[:, 1].mean()
+            pitch = min(range(0, 9), key=lambda i: np.abs(self.surface.get_height(i / 2) - note_height))
+            pitches = 'E F G A B C D e f'.split()[::-1]
+            print(pitches[pitch])
         self.surface.add_widget(g._result_label)
 
     def build(self):
