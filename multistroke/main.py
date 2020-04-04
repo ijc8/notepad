@@ -66,6 +66,16 @@ class NotePadSurface(GestureSurface):
         for i, line in enumerate(self.lines):
             line.points = self.get_points(i)
 
+    def _cleanup(self, dt):
+        print('jk')
+
+
+class Note:
+    def __init__(self, pitch, duration, gesture):
+        self.pitch = pitch
+        self.duration = duration
+        self.gesture = gesture
+
 
 class MultistrokeApp(App):
 
@@ -127,12 +137,20 @@ class MultistrokeApp(App):
             points = np.array(sum(g.get_vectors(), []))
             points = points[util.reject_outliers(points[:, 1])]
             note_height = points[:, 1].mean()
-            pitch = min(range(0, 9), key=lambda i: np.abs(self.surface.get_height(i / 2) - note_height))
             pitches = 'E F G A B C D e f'.split()[::-1]
-            print(pitches[pitch])
+            pitch = pitches[min(range(0, 9), key=lambda i: np.abs(self.surface.get_height(i / 2) - note_height))]
+            durations = {'quarternote': 1/4, 'halfnote': 1/2, 'wholenote': 1}
+            self.notes.append(Note(pitch, durations[best['name']], g))
+            group = list(self.surface.canvas.get_group(g.id))
+            for i0, i1 in zip(group, group[2:]):
+                if isinstance(i0, Color) and isinstance(i1, Line):
+                    i0.rgba = (0, 0, 0, 1)
+            print([(note.pitch, int(note.duration * 4)) for note in self.notes])
         self.surface.add_widget(g._result_label)
 
     def build(self):
+        # TODO: __init__
+        self.notes = []
         # Setting NoTransition breaks the "history" screen! Possibly related
         # to some inexplicable rendering bugs on my particular system
         self.manager = ScreenManager(transition=SlideTransition(
