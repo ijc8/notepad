@@ -30,6 +30,7 @@ from kivy.multistroke import Recognizer
 from kivy.graphics import Ellipse, Color, Line
 import numpy as np
 import fluidsynth
+from sys import platform
 
 # Local libraries
 from historymanager import GestureHistoryManager
@@ -159,8 +160,15 @@ class MultistrokeApp(App):
         self.notes = []
         self.seq = fluidsynth.Sequencer()
         self.fs = fluidsynth.Synth()
-        self.fs.start('alsa')
-        sfid = self.fs.sfload("/usr/share/sounds/sf2/FluidR3_GM.sf2")
+
+        sfid = None
+        if platform == "darwin":
+            self.fs.start('coreaudio')
+            sfid = self.fs.sfload("/Library/Audio/Sounds/Banks/FluidR3_GM.sf2")
+        else:
+            self.fs.start('alsa')
+            sfid = self.fs.sfload("/usr/share/sounds/sf2/FluidR3_GM.sf2")
+
         self.fs.program_select(0, sfid, 0, 0)
         self.synthID = self.seq.register_fluidsynth(self.fs)
 
