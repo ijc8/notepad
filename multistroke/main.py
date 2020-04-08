@@ -68,6 +68,35 @@ class NotePadSurface(GestureSurface):
         for i, line in enumerate(self.lines):
             line.points = self.get_points(i)
 
+    def undo(self):
+        print("undo")
+        return
+
+    def redo(self):
+        print("redo")
+        return
+
+class NotePadControllers(GridLayout):
+    pass
+
+class SurfaceLayout(GridLayout):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def addController(self, controller):
+        self.controller = controller
+        self.add_widget(controller)
+
+    def addSurface(self, surface):
+        self.surface = surface
+        self.add_widget(surface)
+
+    def undo(self):
+        return self.surface.undo()
+
+    def redo(self):
+        return self.surface.redo()
+
 class Note:
     def __init__(self, pitch, duration, gesture, x_pos):
         self.pitch = pitch
@@ -215,10 +244,13 @@ class MultistrokeApp(App):
         self.recognizer = Recognizer()
 
         # Setup the GestureSurface and bindings to our Recognizer
-        surface = NotePadSurface(line_width=2, draw_bbox=True,
-                                 use_random_color=True)
+        surface_layout = SurfaceLayout(cols=1)
+        surface = NotePadSurface(line_width=2, draw_bbox=True, use_random_color=True)
+        controller = NotePadControllers()
+        surface_layout.addController(controller)
+        surface_layout.addSurface(surface)
         surface_screen = Screen(name='surface')
-        surface_screen.add_widget(surface)
+        surface_screen.add_widget(surface_layout)
         self.manager.add_widget(surface_screen)
 
         surface.bind(on_gesture_discard=self.handle_gesture_discard)
