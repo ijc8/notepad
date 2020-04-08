@@ -73,10 +73,11 @@ class NotePadSurface(GestureSurface):
 
 
 class Note:
-    def __init__(self, pitch, duration, gesture):
+    def __init__(self, pitch, duration, gesture, x_pos):
         self.pitch = pitch
         self.duration = duration
         self.gesture = gesture
+        self.x_pos = x_pos
 
 
 class MultistrokeApp(App):
@@ -138,11 +139,14 @@ class MultistrokeApp(App):
             print("dude it's a note")
             points = np.array(sum(g.get_vectors(), []))
             points = points[util.reject_outliers(points[:, 1])]
+
             note_height = points[:, 1].mean()
+            x_pos = points[:, 0].mean()
             pitches = [64, 65, 67, 69, 71, 72, 74, 76, 77][::-1]
             pitch = pitches[min(range(0, 9), key=lambda i: np.abs(self.surface.get_height(i / 2) - note_height))]
             durations = {'quarternote': 1/4, 'halfnote': 1/2, 'wholenote': 1}
-            self.notes.append(Note(pitch, durations[best['name']], g))
+            self.notes.append(Note(pitch, durations[best['name']], g, x_pos))
+            self.notes.sort(key=lambda note: note.x_pos)
             group = list(self.surface.canvas.get_group(g.id))
             for i0, i1 in zip(group, group[2:]):
                 if isinstance(i0, Color) and isinstance(i1, Line):
