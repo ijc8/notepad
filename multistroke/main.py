@@ -151,7 +151,36 @@ class MultistrokeApp(App):
         # Check is same as 'check' mark.
         if best['name'] and best['name'].endswith('playback'):
             self.playback()
+
+        # Loop sign is half circle sign.
+        if best['name'] and best['name'].endswith('loop'):
+            self.shouldLoop = True
+            self.loop()
+
+        # Stop sign is 'X' mark
+        if best['name'] and best['name'].endswith('stop'):
+            self.shouldLoop = False
+
         self.surface.add_widget(g._result_label)
+
+    def loop(self):
+        if not self.shouldLoop:
+            return
+
+        def loop_callback(time, event, seq, data):
+            if not self.shouldLoop:
+                return
+            self.loop()
+
+        t = self.playback()
+        callbackID = self.seq.register_client(
+            name="loop_callback",
+            callback=loop_callback,
+        )
+
+        # Pause in between loops
+        t += 1000
+        self.seq.timer(int(t), dest=callbackID, absolute=False)
 
     def playback(self):
         t = 0
@@ -159,6 +188,7 @@ class MultistrokeApp(App):
             t_duration = note.duration * 1000
             self.seq.note_on(time=int(t), absolute=False, channel=0, key=note.pitch, dest=self.synthID, velocity=80)
             t += t_duration
+        return t
 
     def build(self):
         # TODO: __init__
