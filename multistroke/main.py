@@ -147,13 +147,18 @@ class MultistrokeApp(App):
             for i0, i1 in zip(group, group[2:]):
                 if isinstance(i0, Color) and isinstance(i1, Line):
                     i0.rgba = (0, 0, 0, 1)
-            print([(note.pitch, int(note.duration * 4)) for note in self.notes])
-            t = 0
-            for note in self.notes:
-                t_duration = note.duration * 1000
-                self.seq.note_on(time=int(t), absolute=False, channel=0, key=note.pitch, dest=self.synthID, velocity=80)
-                t += t_duration
+
+        # Check is same as 'check' mark.
+        if best['name'] and best['name'].endswith('playback'):
+            self.playback()
         self.surface.add_widget(g._result_label)
+
+    def playback(self):
+        t = 0
+        for note in self.notes:
+            t_duration = note.duration * 1000
+            self.seq.note_on(time=int(t), absolute=False, channel=0, key=note.pitch, dest=self.synthID, velocity=80)
+            t += t_duration
 
     def build(self):
         # TODO: __init__
