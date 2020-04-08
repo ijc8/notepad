@@ -68,10 +68,6 @@ class NotePadSurface(GestureSurface):
         for i, line in enumerate(self.lines):
             line.points = self.get_points(i)
 
-    def _cleanup(self, dt):
-        print('jk')
-
-
 class Note:
     def __init__(self, pitch, duration, gesture, x_pos):
         self.pitch = pitch
@@ -151,6 +147,7 @@ class MultistrokeApp(App):
             for i0, i1 in zip(group, group[2:]):
                 if isinstance(i0, Color) and isinstance(i1, Line):
                     i0.rgba = (0, 0, 0, 1)
+            g._cleanup_time = None
 
         # Check is same as 'check' mark.
         if best['name'] and best['name'].endswith('playback'):
