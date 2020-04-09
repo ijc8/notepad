@@ -127,18 +127,6 @@ class MultistrokeApp(App):
 
     def handle_gesture_complete(self, surface, g, *l):
         result = self.recognizer.recognize(g.get_vectors())
-        # TODO: temp visualization
-        points = np.array(sum(g.get_vectors(), []))
-        center = points.mean(axis=0)
-        points = points[util.reject_outliers(points[:, 1], verbose=True)]
-        new_center = points.mean(axis=0)
-        radius = 5
-        with self.surface.canvas:
-            Color(1, 1, 1, 1)
-            Ellipse(pos=center - radius, size=(radius * 2, radius * 2))
-            Color(0, 0, 0, 1)
-            Ellipse(pos=new_center - radius, size=(radius * 2, radius * 2))
-        # end tmp
         result._gesture_obj = g
         result.bind(on_complete=self.handle_recognize_complete)
 
@@ -150,28 +138,60 @@ class MultistrokeApp(App):
             return
 
         best = result.best
+        g = result._gesture_obj
+
         if best['name'] is None:
-            text = '[b]No match[/b]'
-        else:
-            text = 'Name: [b]%s[/b]\nScore: [b]%f[/b]\nDistance: [b]%f[/b]' % (
-                   best['name'], best['score'], best['dist'])
+            # No match, early exit. Leave it onscreen in case it's for the user's benefit.
+            group = list(self.surface.canvas.get_group(g.id))
+            for i0, i1 in zip(group, group[2:]):
+                if isinstance(i0, Color) and isinstance(i1, Line):
+                    i0.rgba = (0, 0, 0, 1)
+            g._cleanup_time = None
+            return
+
+        text = 'Name: [b]%s[/b]\nScore: [b]%f[/b]\nDistance: [b]%f[/b]' % (
+                best['name'], best['score'], best['dist'])
 
         text = f'[color=#000000]{text}[/color]'
-        g = result._gesture_obj
         g._result_label = Label(text=text, markup=True, size_hint=(None, None),
                                 center=(g.bbox['minx'], g.bbox['miny']))
-        if best['name'] and best['name'].endswith('note'):
-            print("dude it's a note")
+
+        durations = {'eighth': 1/8, 'quarter': 1/4, 'half': 1/2, 'whole': 1}
+
+        if best['name'].endswith('note'):
             points = np.array(sum(g.get_vectors(), []))
+
+            # TODO: temp visualization
+            center = points.mean(axis=0)
             points = points[util.reject_outliers(points[:, 1])]
+            new_center = points.mean(axis=0)
+            radius = 5
+            with self.surface.canvas:
+                Color(1, 1, 1, 1)
+                Ellipse(pos=center - radius, size=(radius * 2, radius * 2))
+                Color(0, 0, 0, 1)
+                Ellipse(pos=new_center - radius, size=(radius * 2, radius * 2))
+            # end tmp
 
             note_height = points[:, 1].mean()
             x_pos = points[:, 0].mean()
             pitches = [64, 65, 67, 69, 71, 72, 74, 76, 77][::-1]
             pitch = pitches[min(range(0, 9), key=lambda i: np.abs(self.surface.get_height(i / 2) - note_height))]
-            durations = {'eighthnote': 1/8, 'quarternote': 1/4, 'halfnote': 1/2, 'wholenote': 1}
-            self.notes.append(Note(pitch, durations[best['name']], g, x_pos))
+            self.notes.append(Note(pitch, durations[best['name'][:-4]], g, x_pos))
             self.notes.sort(key=lambda note: note.x_pos)
+            # Hacky way to change note color to black once it's registered.
+            group = list(self.surface.canvas.get_group(g.id))
+            for i0, i1 in zip(group, group[2:]):
+                if isinstance(i0, Color) and isinstance(i1, Line):
+                    i0.rgba = (0, 0, 0, 1)
+            g._cleanup_time = None
+
+        if best['name'].endswith('rest'):
+            points = np.array(sum(g.get_vectors(), []))
+            x_pos = points[:, 0].mean()
+            self.notes.append(Note(0, durations[best['name'][:-4]], g, x_pos))
+            self.notes.sort(key=lambda note: note.x_pos)
+            # Hacky way to change rest color to black once it's registered.
             group = list(self.surface.canvas.get_group(g.id))
             for i0, i1 in zip(group, group[2:]):
                 if isinstance(i0, Color) and isinstance(i1, Line):
@@ -179,16 +199,16 @@ class MultistrokeApp(App):
             g._cleanup_time = None
 
         # Check is same as 'check' mark.
-        if best['name'] and best['name'].endswith('playback'):
+        if best['name'].endswith('playback'):
             self.playback()
 
         # Loop sign is half circle sign.
-        if best['name'] and best['name'].endswith('loop'):
+        if best['name'].endswith('loop'):
             self.shouldLoop = True
             self.loop()
 
         # Stop sign is 'X' mark
-        if best['name'] and best['name'].endswith('stop'):
+        if best['name'].endswith('stop'):
             self.shouldLoop = False
 
         self.surface.add_widget(g._result_label)
@@ -216,7 +236,8 @@ class MultistrokeApp(App):
         t = 0
         for note in self.notes:
             t_duration = note.duration * 1000
-            self.seq.note_on(time=int(t), absolute=False, channel=0, key=note.pitch, dest=self.synthID, velocity=80)
+            if note.pitch > 0:
+                self.seq.note_on(time=int(t), absolute=False, channel=0, key=note.pitch, dest=self.synthID, velocity=80)
             t += t_duration
         return t
 
