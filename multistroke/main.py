@@ -41,6 +41,7 @@ import fluidsynth
 import pyaudio
 import wave
 import pickle
+import copy
 
 from dollarpy import Recognizer, Template, Point
 
@@ -220,8 +221,11 @@ class MultistrokeApp(App):
 
         self.handle_recognize_complete(result)
 
-    def handle_recognize_complete(self, result, *l):
+    def add_to_history_for_undo_redo(self, gesture):
+        self.redo_history = []
+        self.undo_history.append((gesture.id, gesture.get_vectors()))
 
+    def handle_recognize_complete(self, result, *l):
         self.history.add_recognizer_result(result)
 
         # Don't bother creating Label if it's not going to be drawn
@@ -238,6 +242,7 @@ class MultistrokeApp(App):
                 if isinstance(i0, Color) and isinstance(i1, Line):
                     i0.rgba = (0, 0, 0, 1)
             g._cleanup_time = None
+            self.add_to_history_for_undo_redo(g)
             return
 
         text = 'Name: [b]%s[/b]\nScore: [b]%f[/b]\nDistance: [b]%f[/b]' % (
@@ -278,6 +283,7 @@ class MultistrokeApp(App):
                 if isinstance(i0, Color) and isinstance(i1, Line):
                     i0.rgba = (0, 0, 0, 1)
             g._cleanup_time = None
+            self.add_to_history_for_undo_redo(g)
 
         if best['name'].endswith('rest'):
             points = np.array(sum(g.get_vectors(), []))
@@ -295,6 +301,7 @@ class MultistrokeApp(App):
                 if isinstance(i0, Color) and isinstance(i1, Line):
                     i0.rgba = (0, 0, 0, 1)
             g._cleanup_time = None
+            self.add_to_history_for_undo_redo(g)
 
         # Check is same as 'check' mark.
         if best['name'].endswith('play'):
@@ -341,12 +348,29 @@ class MultistrokeApp(App):
 
     # ==  NotePad Menu Functions ==
     # TODO(mergen, ian): Implement these.
-
     def undo(self):
-        print("undo")
+        if len(self.undo_history) == 0:
+            return
+        group_id, vectors = self.undo_history[-1]
+        self.undo_history.pop()
+        self.surface.canvas.remove_group(group_id)
+        self.redo_history.append((group_id, vectors))
 
     def redo(self):
-        print("redo")
+        if len(self.redo_history) == 0:
+            return
+
+        group_id, vectors = self.redo_history[-1]
+        self.redo_history.pop()
+
+        vectors = np.array(vectors)
+        with self.surface.canvas:
+            Color(0, 0, 0, 1)
+            Line(points=vectors.flat, group=group_id, width=2)
+
+
+        self.undo_history.append((group_id, vectors))
+
 
     def record(self, save=False):
         """Helper function. Plays one measure of beats and then records one measure of audio."""
@@ -430,6 +454,9 @@ class MultistrokeApp(App):
 
         self.fs.program_select(0, sfid, 0, 0)
         self.synthID = self.seq.register_fluidsynth(self.fs)
+
+        self.undo_history = []
+        self.redo_history = []
 
         # Setting NoTransition breaks the "history" screen! Possibly related
         # to some inexplicable rendering bugs on my particular system
