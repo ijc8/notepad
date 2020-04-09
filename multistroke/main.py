@@ -169,7 +169,7 @@ class MultistrokeApp(App):
             x_pos = points[:, 0].mean()
             pitches = [64, 65, 67, 69, 71, 72, 74, 76, 77][::-1]
             pitch = pitches[min(range(0, 9), key=lambda i: np.abs(self.surface.get_height(i / 2) - note_height))]
-            durations = {'quarternote': 1/4, 'halfnote': 1/2, 'wholenote': 1}
+            durations = {'eighthnote': 1/8, 'quarternote': 1/4, 'halfnote': 1/2, 'wholenote': 1}
             self.notes.append(Note(pitch, durations[best['name']], g, x_pos))
             self.notes.sort(key=lambda note: note.x_pos)
             group = list(self.surface.canvas.get_group(g.id))
