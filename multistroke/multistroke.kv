@@ -38,28 +38,21 @@
             pos: self.pos
             size: self.size
 
-<NotePadControllers>:
+<NotePadMenu>:
     rows: 1
-    spacing: 10
-    padding: 10
-    cols_minimum: {0: 200}
-    GridLayout:
-        id: menu
-        cols: 1
-        spacing: 10
-        padding: 10
-        size_hint: None, 1
-        width: 200
-        Button:
-            text: 'Undo'
-            size_hint_y: None
-            height: 100
-            on_press: root.parent.undo()
-        Button:
-            text: 'Redo'
-            size_hint_y: None
-            height: 100
-            on_press: root.parent.redo()
+    size_hint: (1, None)
+    height: 50
+    spacing: 5
+    padding: 5
+    Button:
+        text: 'Undo'
+        on_press: app.undo()
+    Button:
+        text: 'Redo'
+        on_press: app.redo()
+    Button:
+        text: 'Record'
+        on_press: app.record()
 
 <MultistrokeAppSettings>:
     pos_hint: {'top': 1}
