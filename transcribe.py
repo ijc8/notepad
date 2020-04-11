@@ -78,52 +78,68 @@ def extract_rhythm(audio, sr, bpm, quantization_unit=0.5, verbose=False):
         ax2.vlines(ticks, 0, 1)
         plt.show()
 
-    # For the moment, we're calling the first event beat 0.
-    return out - out[0]
+    return out
+
+
+def freq_to_pitch(freq):
+    freq = np.ascontiguousarray(freq).copy()
+    valid = freq > 0
+    freq[valid] = np.log2(freq[valid] / 440) * 12 + 69
+    return freq
 
 
 def extract_melody(audio, sr, bpm, quantization_unit=0.5, verbose=False):
     hop_size = 128
 
-    pitches, confidence = es.PitchMelodia(hopSize=hop_size)(audio)
+    frame_size = int(sr * quantization_unit / (bpm / 60)) // 4
 
+    freqs, confidence = es.PitchMelodia(hopSize=hop_size, sampleRate=sr, frameSize=frame_size)(audio)
+    pitches = freq_to_pitch(freqs)
     if verbose:
+        fig, (ax0, ax1, ax2, ax3, ax4) = plt.subplots(5, sharex=True)
+        time = np.arange(len(audio)) / sr
+        ax0.set_title('Input')
+        ax0.plot(time, audio)
         time = np.arange(len(pitches)) / (sr / hop_size)
-        fig, (ax0, ax1, ax2) = plt.subplots(3, sharex=True)
-        ax0.set_title('Pitches (with and without smoothing)')
-        ax0.plot(time, pitches)
-        ax1.set_title('Confidence')
-        ax1.plot(time, confidence)
+        ax1.set_title('Pitches')
+        ax1.plot(time, pitches)
+        ax2.set_title('Confidence')
+        ax2.plot(time, confidence)
+        ax3.set_title('Pitch contour segmentation')
+        ax4.set_title('Quantized melody')
 
-    filter_size = int(sr / hop_size * (60 / bpm) * quantization_unit)
-    if filter_size % 2 == 0:
-        filter_size -= 1
-    pitches = scipy.signal.medfilt(pitches, filter_size)
-
-    notes = [(k, len(list(v)) / (sr / hop_size) * (bpm / 60)) for k, v in itertools.groupby(pitches)]
-    quantized_notes = []
-    # Note that this is relative to the start of the first apparent pitch.
-    # It is deliberately unquantized, so that we don't have missing time due to discarded pitches.
-    t = 0
-    for freq, duration in notes:
-        if duration > quantization_unit / 2:
-            # It's long enough to consider.
-            start = quantize(t, quantization_unit)
-            value = quantize(duration, quantization_unit)
-            # Note that this explicitly includes rests as notes with pitch = 0.
-            pitch = int(round(np.log2(freq / 440) * 12 + 69)) if freq > 0 else 0
-            quantized_notes.append((start, value, pitch))
-        t += duration
+    min_duration = quantization_unit / (bpm / 60)
+    notes = np.array(es.PitchContourSegmentation(hopSize=hop_size, minDuration=min_duration, sampleRate=sr, rmsThreshold=-2)(freqs, audio)).T
+    print(notes)
 
     if verbose:
-        ax0.plot(time, pitches)
-        reconstructed = np.zeros(pitches.shape)
+        reconstructed = np.zeros(freqs.shape)
+        for start, duration, pitch in notes:
+            factor = sr / hop_size
+            reconstructed[int(start * factor):int((start + duration) * factor)] = pitch
+        ax3.plot(time, reconstructed)
+
+    quantized_notes = []
+    prev_end = 0
+    for start, duration, pitch in notes:
+        if verbose:
+            print(start, duration, pitch)
+        start = quantize(start * (bpm / 60), quantization_unit)
+        value = quantize(duration * (bpm / 60), quantization_unit)
+        if verbose:
+            print(start, value, pitch)
+        # Note that this explicitly includes rests as notes with pitch = 0.
+        if start != prev_end:
+            quantized_notes.append((prev_end, start - prev_end, 0))
+        prev_end = start + value
+        quantized_notes.append((start, value, pitch))
+
+    if verbose:
+        reconstructed = np.zeros(freqs.shape)
         for start, duration, pitch in quantized_notes:
             factor = (60 / bpm) * (sr / hop_size)
-            freq = 2**((pitch - 69)/12) * 440 if pitch > 0 else 0
-            reconstructed[int(start * factor):int((start + duration) * factor)] = freq
-        ax2.set_title('Melody after quantization')
-        ax2.plot(time, reconstructed)
+            reconstructed[int(start * factor):int((start + duration) * factor)] = pitch
+        ax4.plot(time, reconstructed)
         plt.show()
 
     return quantized_notes

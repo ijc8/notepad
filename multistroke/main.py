@@ -239,20 +239,25 @@ class MultistrokeApp(App):
     def redo(self):
         print("redo")
 
-    def record(self):
-        print("record")
-        sr = 44100
-        frame_size = 1024
-        # TODO: for now, locked to one measure of recording. figure out actual policy.
-        # (8 beats to include the calibration measure)
-        length = 8 / (self.tempo / 60)  # seconds
-        stream = self.audio.open(format=pyaudio.paInt16, channels=1,
-                                 rate=sr, input=True,
-                                 frames_per_buffer=frame_size)
+    def record(self, save=False):
+        """Helper function. Plays one measure of beats and then records one measure of audio."""
 
         # Play four beeps to indicate tempo and key.
         for i in range(4):
             self.seq.note_on(time=self.beats_to_ticks(i), absolute=False, channel=0, key=60, dest=self.synthID, velocity=80)
+
+        sr = 44100
+        frame_size = 1024
+        # TODO: for now, locked to one measure of recording. figure out actual policy.
+        # (9 beats to include the calibration measure + latency allowance)
+        length = 9 / (self.tempo / 60)  # seconds
+        print("recording")
+        stream = self.audio.open(format=pyaudio.paInt16, channels=1,
+                                 rate=sr, input=True,
+                                 frames_per_buffer=frame_size)
+        print('latencies', stream.get_input_latency(), stream.get_output_latency())
+        # for the moment we're assuming pyaudio's output latency is a good estimate of fluidsynth's...
+        latency = stream.get_input_latency() + stream.get_output_latency()
 
         frames = []
         for i in range(0, int(sr / frame_size * length)):
@@ -262,21 +267,34 @@ class MultistrokeApp(App):
         stream.stop_stream()
         stream.close()
 
-        outfile = 'recorded.wav'
-        f = wave.open(outfile, 'wb')
-        f.setnchannels(1)
-        f.setsampwidth(2)
-        f.setframerate(sr)
         data = b''.join(frames)
-        f.writeframes(data)
-        f.close()
-        print(f'done recording, saved to {outfile}.')
+
+        if save:
+            outfile = 'recorded.wav'
+            f = wave.open(outfile, 'wb')
+            f.setnchannels(1)
+            f.setsampwidth(2)
+            f.setframerate(sr)
+            f.writeframes(data)
+            f.close()
+            print(f'saved recording to {outfile}.')
 
         data = np.frombuffer(data, dtype=np.int16).astype(np.int)
-        # Throw out the first half
-        data = data[len(data)//2:]
-        rhythm = transcribe.extract_rhythm(data, sr, self.tempo, verbose=True)
+        # Throw out the first four beats plus latency, and the last beat.
+        start = (60 / self.tempo) * 4 + latency
+        end = (60 / self.tempo) * 8 + latency
+        data = data[int(start * sr):int(end * sr)]
+        return data, sr
+
+    def record_rhythm(self):
+        audio, sr = self.record()
+        rhythm = transcribe.extract_rhythm(audio, sr, self.tempo, verbose=True)
         print('rhythm', rhythm)
+
+    def record_melody(self):
+        audio, sr = self.record()
+        melody = transcribe.extract_melody(audio, sr, self.tempo, verbose=True)
+        print('melody', melody)
 
     def beats_to_ticks(self, beats):
         ticks = self.time_scale / (self.tempo / 60) * beats
