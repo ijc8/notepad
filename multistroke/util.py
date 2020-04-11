@@ -1,4 +1,5 @@
 import numpy as np
+from dollarpy import Point
 
 def reject_outliers(points, acceptance_threshold=2, max_rounds=10, verbose=False):
     """Reject outliers from a dataset in rounds.
@@ -28,3 +29,31 @@ def reject_outliers(points, acceptance_threshold=2, max_rounds=10, verbose=False
         print('final size:', old_len)
 
     return indices
+
+def convert_to_dollar(g_vectors):
+    points = []
+    for idx, stroke in enumerate(g_vectors):
+        for point in stroke:
+            points.append(Point(point[0], point[1], idx))
+
+    return points
+
+class ResultWrapper:
+    def __init__(self, result):
+        self.best = {
+            'name': result[0],
+            'score': result[1],
+            'dist': result[1],
+        }
+        self._gesture_obj = None
+
+        if result[0]:
+            self.results = {
+                result[0]: {
+                    'name': result[0],
+                    'score': result[1],
+                    'dist': result[1],
+                },
+            }
+        else:
+            self.results = {}

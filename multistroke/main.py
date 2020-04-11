@@ -30,7 +30,6 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.uix.gesturesurface import GestureSurface
 from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
 from kivy.uix.label import Label
-from kivy.multistroke import Recognizer
 from kivy.graphics import Ellipse, Color, Line
 
 # Other external libraries
@@ -38,6 +37,8 @@ import numpy as np
 import fluidsynth
 import pyaudio
 import wave
+
+from dollarpy import Recognizer, Template, Point
 
 # Local libraries
 from historymanager import GestureHistoryManager
@@ -88,7 +89,6 @@ class Note:
         self.gesture = gesture
         self.x_pos = x_pos
 
-
 class MultistrokeApp(App):
 
     def goto_database_screen(self, *l):
@@ -110,9 +110,14 @@ class MultistrokeApp(App):
         self.surface.add_widget(g._result_label)
 
     def handle_gesture_complete(self, surface, g, *l):
-        result = self.recognizer.recognize(g.get_vectors())
+        dollarResult = self.recognizer.recognize(
+            util.convert_to_dollar(g.get_vectors()))
+
+        result = util.ResultWrapper(dollarResult)
+
         result._gesture_obj = g
-        result.bind(on_complete=self.handle_recognize_complete)
+
+        self.handle_recognize_complete(result)
 
     def handle_recognize_complete(self, result, *l):
         self.history.add_recognizer_result(result)
@@ -303,7 +308,8 @@ class MultistrokeApp(App):
         # to some inexplicable rendering bugs on my particular system
         self.manager = ScreenManager(transition=SlideTransition(
                                      duration=.15))
-        self.recognizer = Recognizer()
+
+        self.recognizer = Recognizer([])
 
         # Setup the GestureSurface and bindings to our Recognizer
         surface = NotePadSurface(line_width=2, draw_bbox=True, use_random_color=True)

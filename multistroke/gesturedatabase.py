@@ -12,6 +12,7 @@ from kivy.multistroke import Recognizer
 
 # local libraries
 from helpers import InformationPopup
+import pickle
 
 
 Builder.load_file('gesturedatabase.kv')
@@ -51,7 +52,7 @@ class GestureDatabaseItem(FloatLayout):
     def update_template_count(self, *l):
         tpl_count = 0
         for g in self.gesture_list:
-            tpl_count += len(g.templates)
+            tpl_count += 1 # len(g.templates)
         self.template_count = tpl_count
 
     def draw_item(self, *l):
@@ -89,15 +90,31 @@ class GestureDatabase(GridLayout):
         self.redraw_all = Clock.create_trigger(self._redraw_gesture_list, 0)
         self.export_popup.ids.save_btn.bind(on_press=self.perform_export)
         self.import_popup.ids.filechooser.bind(on_submit=self.perform_import)
-        self.recognizer.import_gesture(filename='model/prototype.kg')
+
+        self.import_gesture()
+
         self.import_gdb()
+
+    def import_gesture(self, filename='model/dollarpy'):
+        templates = []
+        with open(filename, "rb") as data_file:
+            templates = pickle.load(data_file)
+
+        self.recognizer.templates = templates
+        # self.recognizer.import_gesture(filename='model/prototype.kg')
 
     def import_gdb(self):
         self.gdict = {}
-        for gesture in self.recognizer.db:
+
+        for gesture in self.recognizer.templates:
             if gesture.name not in self.gdict:
                 self.gdict[gesture.name] = []
             self.gdict[gesture.name].append(gesture)
+
+        # for gesture in self.recognizer.db:
+        #    if gesture.name not in self.gdict:
+        #        self.gdict[gesture.name] = []
+        #    self.gdict[gesture.name].append(gesture)
 
         self.selected_count = 0
         self.ids.gesture_list.clear_widgets()
@@ -127,7 +144,10 @@ class GestureDatabase(GridLayout):
 
     def unload_gestures(self, *l):
         if not self.selected_count:
-            self.recognizer.db = []
+
+            self.recognizer.templates = []
+            # self.recognizer.db = []
+
             self.ids.gesture_list.clear_widgets()
             self.selected_count = 0
             return
@@ -137,7 +157,7 @@ class GestureDatabase(GridLayout):
                 self.selected_count -= 1
                 for g in i.gesture_list:
                     # if g in self.recognizer.db:  # not needed, for testing
-                    self.recognizer.db.remove(g)
+                    self.recognizer.templates.remove(g)
                     self.ids.gesture_list.remove_widget(i)
 
     def perform_export(self, *l):
@@ -147,8 +167,8 @@ class GestureDatabase(GridLayout):
             self.info_popup.text = 'Missing filename'
             self.info_popup.open()
             return
-        elif not path.lower().endswith('.kg'):
-            path += '.kg'
+        #elif not path.lower().endswith('.kg'):
+        #    path += '.kg'
 
         self.save_selection_to_file(path)
 
@@ -157,25 +177,32 @@ class GestureDatabase(GridLayout):
         self.info_popup.open()
 
     def perform_import(self, filechooser, *l):
-        count = len(self.recognizer.db)
+        count = len(self.recognizer.templates)
         for f in filechooser.selection:
-            self.recognizer.import_gesture(filename=f)
+            self.import_gesture(filename=f)
         self.import_gdb()
         self.info_popup.text = ("Imported %d gestures.\n" %
-                                (len(self.recognizer.db) - count))
+                                (len(self.recognizer.templates) - count))
         self.import_popup.dismiss()
         self.info_popup.open()
 
+    def export_gestures(self, recognizer, filename):
+        templates = recognizer.templates
+        with open(filename, "wb") as data_file:
+            pickle.dump(templates, data_file)
+        # recognizer.export_gesture(filename=filename)
+
     def save_selection_to_file(self, filename, *l):
         if not self.selected_count:
-            self.recognizer.export_gesture(filename=filename)
+            self.export_gestures(self.recognizer, filename=filename)
         else:
             tmpgdb = Recognizer()
             for i in self.ids.gesture_list.children:
                 if i.ids.select.state == 'down':
                     for g in i.gesture_list:
-                        tmpgdb.db.append(g)
-            tmpgdb.export_gesture(filename=filename)
+                        tmpgdb.templates.append(g)
+                        # tmpgdb.db.append(g)
+            self.export_gestures(tmpgdb, filename=filename)
 
     def _redraw_gesture_list(self, *l):
         for child in self.ids.gesture_list.children:

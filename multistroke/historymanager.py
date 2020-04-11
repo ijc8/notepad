@@ -11,6 +11,10 @@ from kivy.graphics import Color, Line
 from kivy.properties import ObjectProperty, BooleanProperty
 from kivy.compat import PY2
 
+from dollarpy import Template
+
+import util
+
 # local libraries
 from helpers import InformationPopup
 from settings import MultistrokeSettingsContainer
@@ -44,15 +48,19 @@ class GestureHistoryManager(GridLayout):
         gesture_obj = self.selected._result_obj._gesture_obj
 
         # Reanalyze the candidate strokes using current database
-        res = self.recognizer.recognize(gesture_obj.get_vectors(),
-                                        max_gpf=100)
+        # res = self.recognizer.recognize(gesture_obj.get_vectors(),
+        #                                max_gpf=100)
+
+        dollarResult = self.recognizer.recognize(util.convert_to_dollar(gesture_obj.get_vectors()))
+        res = util.ResultWrapper(dollarResult)
 
         # Tag the result with the gesture object (it didn't change)
         res._gesture_obj = gesture_obj
 
         # Tag the selected item with the updated ProgressTracker
         self.selected._result_obj = res
-        res.bind(on_complete=self._reanalyze_complete)
+
+        self._reanalyze_complete()
 
     def _reanalyze_complete(self, *l):
         self.gesturesettingsform.load_visualizer(self.selected)
@@ -79,22 +87,24 @@ class GestureHistoryManager(GridLayout):
         strokelen = ids.stroke_sens.value
         angle_sim = ids.angle_sim.value
 
-        cand = self.selected._result_obj._gesture_obj.get_vectors()
+        cand = util.convert_to_dollar(self.selected._result_obj._gesture_obj.get_vectors())
 
-        if permute and len(cand) > MAX_PERMUTE_STROKES:
-            t = "Can't heap permute %d-stroke gesture " % (len(cand))
-            self.infopopup.text = t
-            self.infopopup.auto_dismiss = True
-            self.infopopup.open()
-            return
+        self.recognizer.templates.append(Template(name, cand))
 
-        self.recognizer.add_gesture(
-            name,
-            cand,
-            use_strokelen=strokelen,
-            orientation_sensitive=sensitive,
-            angle_similarity=angle_sim,
-            permute=permute)
+        # if permute and len(cand) > MAX_PERMUTE_STROKES:
+        #    t = "Can't heap permute %d-stroke gesture " % (len(cand))
+        #    self.infopopup.text = t
+        #    self.infopopup.auto_dismiss = True
+        #    self.infopopup.open()
+        #    return
+
+        # self.recognizer.add_gesture(
+        #    name,
+        #    cand,
+        #    use_strokelen=strokelen,
+        #    orientation_sensitive=sensitive,
+        #    angle_similarity=angle_sim,
+        #    permute=permute)
 
         self.infopopup.text = 'Gesture added to database'
         self.infopopup.auto_dismiss = True
