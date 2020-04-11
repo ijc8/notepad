@@ -21,7 +21,8 @@ described in the file multistroke.kv and managed from this file.
 
 '''
 # Built-in modules
-from sys import platform
+import sys
+sys.path += ['.', '..']
 
 # Kivy
 from kivy.app import App
@@ -43,6 +44,7 @@ from historymanager import GestureHistoryManager
 from gesturedatabase import GestureDatabase
 from settings import MultistrokeSettingsContainer
 import util
+import transcribe
 
 
 class MainMenu(GridLayout):
@@ -122,8 +124,8 @@ class MultistrokeApp(App):
         best = result.best
         g = result._gesture_obj
 
-        if best['name'] is None:
-            # No match, early exit. Leave it onscreen in case it's for the user's benefit.
+        if best['name'] is None or best['name'] == 'trebleclef':
+            # No match or ignored. Leave it onscreen in case it's for the user's benefit.
             group = list(self.surface.canvas.get_group(g.id))
             for i0, i1 in zip(group, group[2:]):
                 if isinstance(i0, Color) and isinstance(i1, Line):
@@ -217,7 +219,7 @@ class MultistrokeApp(App):
     def playback(self):
         t = 0
         for note in self.notes:
-            t_duration = note.duration * 1000
+            t_duration = self.beats_to_ticks(note.duration)
             if note.pitch > 0:
                 self.seq.note_on(time=int(t), absolute=False, channel=0, key=note.pitch, dest=self.synthID, velocity=80)
             t += t_duration
@@ -233,14 +235,19 @@ class MultistrokeApp(App):
         print("redo")
 
     def record(self):
-        # TODO: do the thing we actually want
         print("record")
         sr = 44100
         frame_size = 1024
-        length = 3  # seconds
+        # TODO: for now, locked to one measure of recording. figure out actual policy.
+        # (8 beats to include the calibration measure)
+        length = 8 / (self.tempo / 60)  # seconds
         stream = self.audio.open(format=pyaudio.paInt16, channels=1,
                                  rate=sr, input=True,
                                  frames_per_buffer=frame_size)
+
+        # Play four beeps to indicate tempo and key.
+        for i in range(4):
+            self.seq.note_on(time=self.beats_to_ticks(i), absolute=False, channel=0, key=60, dest=self.synthID, velocity=80)
 
         frames = []
         for i in range(0, int(sr / frame_size * length)):
@@ -255,19 +262,34 @@ class MultistrokeApp(App):
         f.setnchannels(1)
         f.setsampwidth(2)
         f.setframerate(sr)
-        f.writeframes(b''.join(frames))
+        data = b''.join(frames)
+        f.writeframes(data)
         f.close()
         print(f'done recording, saved to {outfile}.')
 
+        data = np.frombuffer(data, dtype=np.int16).astype(np.int)
+        # Throw out the first half
+        data = data[len(data)//2:]
+        rhythm = transcribe.extract_rhythm(data, sr, self.tempo, verbose=True)
+        print('rhythm', rhythm)
+
+    def beats_to_ticks(self, beats):
+        ticks = self.time_scale / (self.tempo / 60) * beats
+        # TODO: temp for debugging
+        assert(ticks == int(ticks))
+        return int(round(ticks))
+
     def build(self):
         # TODO: __init__?
+        self.time_scale = 1000
+        self.tempo = 120  # bpm
         self.audio = pyaudio.PyAudio()
         self.notes = []
-        self.seq = fluidsynth.Sequencer()
+        self.seq = fluidsynth.Sequencer(time_scale=self.time_scale)
         self.fs = fluidsynth.Synth()
 
         sfid = None
-        if platform == "darwin":
+        if sys.platform == "darwin":
             self.fs.start('coreaudio')
             sfid = self.fs.sfload("/Library/Audio/Sounds/Banks/FluidR3_GM.sf2")
         else:

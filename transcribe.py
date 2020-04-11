@@ -28,17 +28,27 @@ def extract_rhythm(audio, sr, bpm, quantization_unit=0.5, verbose=False):
     onsets = es.Onsets()(np.array([onset_curve]), [1])
 
     # Determine location of beats.
-    bt = es.BeatTrackerMultiFeature()
-    ticks, confidence = bt(audio)
+    # bt = es.BeatTrackerMultiFeature(minTempo=bpm - 10, maxTempo=bpm + 10)
+    # ticks, confidence = bt(audio)
+    # For the moment, we'll assume the first beat is right at the start of the audio and we'll follow the tempo exactly.
+    num_beats = int(np.ceil(len(audio) / sr * (bpm / 60))) + 1
+    print(f'Generating {num_beats} beats.')
+    ticks = np.arange(num_beats) / (bpm / 60)
+    confidence = None
 
     # Now put times in terms of beats.
     events = onsets * (bpm / 60)
     beats = ticks * (bpm / 60)
+    if verbose:
+        print(events)
+        print(beats)
     # Quantize event onsets using beats.
     event_index = 0
     beat_index = 0
     out = []
     while event_index < len(events):
+        if verbose:
+            print(event_index, beat_index, out)
         prev_beat = beats[beat_index]
         next_beat = beats[beat_index+1]
         event = events[event_index]
