@@ -20,24 +20,30 @@ settings.py and described in settings.kv. but the actual settings pane is
 described in the file multistroke.kv and managed from this file.
 
 '''
+# Built-in modules
+from sys import platform
+
+# Kivy
 from kivy.app import App
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.gesturesurface import GestureSurface
 from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
 from kivy.uix.label import Label
 from kivy.multistroke import Recognizer
-
 from kivy.graphics import Ellipse, Color, Line
+
+# Other external libraries
 import numpy as np
 import fluidsynth
-from sys import platform
+import pyaudio
+import wave
 
 # Local libraries
 from historymanager import GestureHistoryManager
 from gesturedatabase import GestureDatabase
 from settings import MultistrokeSettingsContainer
-
 import util
+
 
 class MainMenu(GridLayout):
     pass
@@ -227,10 +233,35 @@ class MultistrokeApp(App):
         print("redo")
 
     def record(self):
+        # TODO: do the thing we actually want
         print("record")
+        sr = 44100
+        frame_size = 1024
+        length = 3  # seconds
+        stream = self.audio.open(format=pyaudio.paInt16, channels=1,
+                                 rate=sr, input=True,
+                                 frames_per_buffer=frame_size)
+
+        frames = []
+        for i in range(0, int(sr / frame_size * length)):
+            data = stream.read(frame_size)
+            frames.append(data)
+
+        stream.stop_stream()
+        stream.close()
+
+        outfile = 'recorded.wav'
+        f = wave.open(outfile, 'wb')
+        f.setnchannels(1)
+        f.setsampwidth(2)
+        f.setframerate(sr)
+        f.writeframes(b''.join(frames))
+        f.close()
+        print(f'done recording, saved to {outfile}.')
 
     def build(self):
-        # TODO: __init__
+        # TODO: __init__?
+        self.audio = pyaudio.PyAudio()
         self.notes = []
         self.seq = fluidsynth.Sequencer()
         self.fs = fluidsynth.Synth()
