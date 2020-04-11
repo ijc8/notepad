@@ -188,7 +188,7 @@ class MultistrokeApp(App):
             g._cleanup_time = None
 
         # Check is same as 'check' mark.
-        if best['name'].endswith('playback'):
+        if best['name'].endswith('play'):
             self.playback()
 
         # Loop sign is half circle sign.
