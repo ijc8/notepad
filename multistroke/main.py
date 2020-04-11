@@ -281,7 +281,7 @@ class MultistrokeApp(App):
     def beats_to_ticks(self, beats):
         ticks = self.time_scale / (self.tempo / 60) * beats
         # TODO: temp for debugging
-        assert(ticks == int(ticks))
+        assert(ticks == int(ticks), f'{beats} and {ticks}')
         return int(round(ticks))
 
     def build(self):
