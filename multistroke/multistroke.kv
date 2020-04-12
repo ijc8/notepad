@@ -42,12 +42,25 @@
     pos: (0, 0)
     size: (1240, 1754)  # A4 paper @ 75 DPI
     size_hint: (1, 1)
+    line_width: 2
+    draw_bbox: True
+    use_random_color: True
     canvas.before:
         Color:
             rgba: 0.94, 0.9, 0.8, 1
         Rectangle:
             pos: self.pos
             size: self.size
+
+<NotePadContainer>:
+    id: container
+    do_rotation: False
+    size_hint: (1, 1)
+    RelativeLayout:
+        pos: (container.center_x - surface.center_x, container.height - surface.height)
+        size: surface.size
+        NotePadSurface:
+            id: surface
 
 <NotePadMenu>:
     rows: 1

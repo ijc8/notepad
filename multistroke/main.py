@@ -58,8 +58,9 @@ class MultistrokeAppSettings(MultistrokeSettingsContainer):
 
 
 class NotePadSurface(GestureSurface):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def on_kv_post(self, base_widget):
+        super().on_kv_post(base_widget)
+        # Draw lines here, because self.size isn't set yet in __init__().
         self.lines = []
         self.staff_spacing = 1/12
         self.line_spacing = 1/96
@@ -77,23 +78,26 @@ class NotePadSurface(GestureSurface):
         return [0, height, self.size[0], height]
 
     def on_touch_down(self, touch):
-        print(touch.profile, touch.button)
-        if 'button' in touch.profile and touch.button == 'right':
-            # Don't handle right-clicks: let the ScatterPlane take them.
+        if 'button' in touch.profile and touch.button != 'left':
+            # Don't handle right or middle-clicks: let the ScatterPlane take them.
             return False
         return super().on_touch_down(touch)
 
     def on_touch_move(self, touch):
-        if 'button' in touch.profile and touch.button == 2:
-            # Don't handle right-clicks: let the ScatterPlane take them.
+        if 'button' in touch.profile and touch.button != 'left':
+            # Don't handle right or middle-clicks: let the ScatterPlane take them.
             return False
         return super().on_touch_move(touch)
 
     def on_touch_up(self, touch):
-        if 'button' in touch.profile and touch.button == 2:
-            # Don't handle right-clicks: let the ScatterPlane take them.
+        if 'button' in touch.profile and touch.button != 'left':
+            # Don't handle right or middle-clicks: let the ScatterPlane take them.
             return False
         return super().on_touch_up(touch)
+
+
+class NotePadContainer(ScatterPlane):
+    pass
 
 
 class NotePadMenu(GridLayout):
@@ -348,34 +352,18 @@ class MultistrokeApp(App):
         self.recognizer = Recognizer([])
 
         # Setup the GestureSurface and bindings to our Recognizer
-
-        surface = NotePadSurface(line_width=2, draw_bbox=True, use_random_color=True)
         surface_screen = Screen(name='surface')
 
-        scatter = ScatterPlane(do_rotation=False, size_hint=(None, None), size=surface.size)
-        scatter.add_widget(surface)
-
-        # TODO: figure out nice initial positioning, correct behavior on resize/fullscreen
-        # from kivy.graphics.transformation import Matrix
-        # scatter.scale = 0.5
-        # def fix_size(scatter, size):
-        #     scale_matrix = Matrix()
-        #     translate_matrix = Matrix()
-        #     scale = size[1] / surface.height
-        #     scale_matrix.scale(scale, scale, 1)
-        #     translate_matrix.translate(size[0] / 2 - surface.width * scale / 2, size[1] / 2 - surface.height * scale / 2, 0)
-        #     # m = scale_matrix.multiply(translate_matrix)
-        #     m = translate_matrix.multiply(scale_matrix)
-        #     scatter.transform = m
-        # scatter.bind(size=fix_size)
-
-        surface_screen.add_widget(scatter)
-        self.manager.add_widget(surface_screen)
+        surface_container = NotePadContainer()
+        surface = surface_container.ids['surface']
 
         surface.bind(on_gesture_discard=self.handle_gesture_discard)
         surface.bind(on_gesture_complete=self.handle_gesture_complete)
         surface.bind(on_gesture_cleanup=self.handle_gesture_cleanup)
         self.surface = surface
+
+        surface_screen.add_widget(surface_container)
+        self.manager.add_widget(surface_screen)
 
         # History is the list of gestures drawn on the surface
         history = GestureHistoryManager()
