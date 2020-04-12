@@ -1,3 +1,11 @@
+# For debugging. See also the Kivy inspector (-m inspector)
+# <Widget>:
+#     canvas.after:
+#         Line:
+#             rectangle: self.x+1,self.y+1,self.width-1,self.height-1
+#             dash_offset: 5
+#             dash_length: 3
+
 <MainMenu>:
     rows: 1
     size_hint: (1, None)
@@ -31,6 +39,9 @@
             if self.state == 'normal': self.state = 'down'
 
 <NotePadSurface>:
+    pos: (0, 0)
+    size: (1240, 1754)  # A4 paper @ 75 DPI
+    size_hint: (1, 1)
     canvas.before:
         Color:
             rgba: 0.94, 0.9, 0.8, 1

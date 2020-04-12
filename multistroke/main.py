@@ -30,6 +30,7 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.uix.gesturesurface import GestureSurface
 from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
 from kivy.uix.label import Label
+from kivy.uix.scatter import ScatterPlane
 from kivy.graphics import Ellipse, Color, Line
 
 # Other external libraries
@@ -60,22 +61,39 @@ class NotePadSurface(GestureSurface):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.lines = []
-        self.spacing = 1/16
+        self.staff_spacing = 1/12
+        self.line_spacing = 1/96
         with self.canvas.before:
             Color(0, 0, 0, 1)
-            for i in range(0, 5):
-                self.lines.append(Line(points=self.get_points(i)))
+            for staff in range(2):
+                for line in range(5):
+                    self.lines.append(Line(points=self.get_points(staff, line)))
 
-    def get_height(self, line_number):
-        return self.size[1] * (1/2 - (line_number - 2) * self.spacing)
+    def get_height(self, staff_number, line_number):
+        return self.size[1] - self.size[1] * (self.staff_spacing * (staff_number + 1) + self.line_spacing * (line_number - 2))
 
-    def get_points(self, line_number):
-        height = self.get_height(line_number)
+    def get_points(self, staff_number, line_number):
+        height = self.get_height(staff_number, line_number)
         return [0, height, self.size[0], height]
 
-    def on_size(self, foo, bar):
-        for i, line in enumerate(self.lines):
-            line.points = self.get_points(i)
+    def on_touch_down(self, touch):
+        print(touch.profile, touch.button)
+        if 'button' in touch.profile and touch.button == 'right':
+            # Don't handle right-clicks: let the ScatterPlane take them.
+            return False
+        return super().on_touch_down(touch)
+
+    def on_touch_move(self, touch):
+        if 'button' in touch.profile and touch.button == 2:
+            # Don't handle right-clicks: let the ScatterPlane take them.
+            return False
+        return super().on_touch_move(touch)
+
+    def on_touch_up(self, touch):
+        if 'button' in touch.profile and touch.button == 2:
+            # Don't handle right-clicks: let the ScatterPlane take them.
+            return False
+        return super().on_touch_up(touch)
 
 
 class NotePadMenu(GridLayout):
@@ -165,7 +183,7 @@ class MultistrokeApp(App):
             note_height = points[:, 1].mean()
             x_pos = points[:, 0].mean()
             pitches = [64, 65, 67, 69, 71, 72, 74, 76, 77][::-1]
-            pitch = pitches[min(range(0, 9), key=lambda i: np.abs(self.surface.get_height(i / 2) - note_height))]
+            pitch = pitches[min(range(0, 9), key=lambda i: np.abs(self.surface.get_height(0, i / 2) - note_height))]
             self.notes.append(Note(pitch, durations[best['name'][:-4]], g, x_pos))
             self.notes.sort(key=lambda note: note.x_pos)
             # Hacky way to change note color to black once it's registered.
@@ -330,9 +348,28 @@ class MultistrokeApp(App):
         self.recognizer = Recognizer([])
 
         # Setup the GestureSurface and bindings to our Recognizer
+
         surface = NotePadSurface(line_width=2, draw_bbox=True, use_random_color=True)
         surface_screen = Screen(name='surface')
-        surface_screen.add_widget(surface)
+
+        scatter = ScatterPlane(do_rotation=False, size_hint=(None, None), size=surface.size)
+        scatter.add_widget(surface)
+
+        # TODO: figure out nice initial positioning, correct behavior on resize/fullscreen
+        # from kivy.graphics.transformation import Matrix
+        # scatter.scale = 0.5
+        # def fix_size(scatter, size):
+        #     scale_matrix = Matrix()
+        #     translate_matrix = Matrix()
+        #     scale = size[1] / surface.height
+        #     scale_matrix.scale(scale, scale, 1)
+        #     translate_matrix.translate(size[0] / 2 - surface.width * scale / 2, size[1] / 2 - surface.height * scale / 2, 0)
+        #     # m = scale_matrix.multiply(translate_matrix)
+        #     m = translate_matrix.multiply(scale_matrix)
+        #     scatter.transform = m
+        # scatter.bind(size=fix_size)
+
+        surface_screen.add_widget(scatter)
         self.manager.add_widget(surface_screen)
 
         surface.bind(on_gesture_discard=self.handle_gesture_discard)
