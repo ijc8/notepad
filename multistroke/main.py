@@ -66,8 +66,8 @@ class NotePadSurface(GestureSurface):
         super().on_kv_post(base_widget)
         # Draw lines here, because self.size isn't set yet in __init__().
         self.lines = []
-        self.staff_spacing = 1/12
-        self.line_spacing = 1/96
+        self.staff_spacing = self.size[1] / 12
+        self.line_spacing = self.size[1] / 96
         with self.canvas.before:
             Color(0, 0, 0, 1)
             for staff in range(2):
@@ -75,7 +75,7 @@ class NotePadSurface(GestureSurface):
                     self.lines.append(Line(points=self.get_points(staff, line)))
 
     def get_height(self, staff_number, line_number):
-        return self.size[1] - self.size[1] * (self.staff_spacing * (staff_number + 1) + self.line_spacing * (line_number - 2))
+        return self.size[1] - self.staff_spacing * (staff_number + 1) - self.line_spacing * (line_number - 2)
 
     def get_points(self, staff_number, line_number):
         height = self.get_height(staff_number, line_number)
@@ -99,72 +99,66 @@ class NotePadSurface(GestureSurface):
             return False
         return super().on_touch_up(touch)
 
-    def get_spacing_between_lines(self):
-        return self.get_height(0, 0) - self.get_height(0, 1)
-
-    def get_gesture_from_value(self, value):
+    def get_note_gesture(self, value, pitch):
         gesture = []
         value = value / 4
         for name, duration in durations.items():
             if duration == value:
-                filename = name + 'note'
+                filename = name + ('note' if pitch else 'rest')
                 with open("ink/" + filename, "rb") as data_file:
                     gesture = pickle.load(data_file)
                 return gesture
         return gesture
 
     def get_y_from_pitch(self, staff_number, pitch):
+        # Special case: put rests in the middle of the staff.
+        if pitch == 0:
+            return self.get_height(staff_number, 2)
         pitches = [77, 76, 74, 72, 71, 69, 67, 65, 64]
         idx = pitches.index(pitch)
-        floor = int(math.floor(idx / 2.0))
-        ceil = int(math.ceil(idx / 2.0))
-        return (self.get_height(staff_number, floor) + self.get_height(staff_number, ceil)) / 2
-
-    def calculate_bounding_box(self, points):
-        x = points[:, 0]
-        y = points[:, 1]
-        return np.min(x), np.max(x), np.min(y), np.max(y)
+        return self.get_height(staff_number, idx / 2)
 
     def draw_ink_based_on_melody(self, staff_number, x_start, melody):
         for note in melody:
             x_next_start = self.draw_ink_based_on_note(staff_number, x_start, note)
             x_start = x_next_start
 
+    def align_note(self, note, points):
+        "Normalize and translate notes so (0, 0) is where the note should be pinned on a staff."
+        (_, value, pitch) = note
+        mins, maxs = util.get_bounds(points)
+        width, height = maxs - mins
+        if pitch:
+            # Normalize notes - size of notehead should equal line spacing.
+            normalization_factor = self.line_spacing / width
+            points = (points - mins) * normalization_factor
+
+            # Translate - set (0, 0) to center of notehead.
+            points_without_outliers = points[util.reject_outliers(points[:, 1])]
+            center = points_without_outliers.mean(axis=0)
+            return points - center
+        elif value == 4:
+            # For whole rests, top should be aligned to y = 0.
+            return points - points.mean(axis=0) - height / 2
+        elif value == 2:
+            # For half rests, bottom should be aligned to y = 0.
+            return points - points.mean(axis=0) + height / 2
+        else:
+            return points - points.mean(axis=0)
+
     def draw_ink_based_on_note(self, staff_number, x_start, note):
         (_, value, pitch) = note
-        gesture = self.get_gesture_from_value(value)
+        gesture = self.get_note_gesture(value, pitch)
         points = np.array(sum(gesture, []))
-        spacing = self.get_spacing_between_lines()
-        bar_size = 12 * spacing
+        bar_size = 12 * self.line_spacing
         note_padding = (bar_size * (value / 4.0)) / 2
-
-        # Normalize
-        minx, maxx, miny, maxy = self.calculate_bounding_box(points)
-        normalization_factor = spacing / (maxx - minx)
-        normalized_points = []
-        for point in points:
-            new_x = minx + (point[0] - minx) * normalization_factor
-            new_y = miny + (point[1] - miny) * normalization_factor
-            normalized_points.append((new_x, new_y))
-        points = np.array(normalized_points)
-
-        # Translate
-        points_without_outliers = points[util.reject_outliers(points[:, 1])]
-        center = points_without_outliers.mean(axis=0)
+        points = self.align_note(note, points)
         new_center_x = x_start + note_padding
-        new_center_y = self.get_y_from_pitch(staff_number, pitch)
-        translation_x = new_center_x - center[0]
-        translation_y = new_center_y - center[1]
-        points = points + np.array([translation_x, translation_y])
-
-        out = []
-        for point in points:
-            out.append(point[0])
-            out.append(point[1])
+        points += (new_center_x, self.get_y_from_pitch(staff_number, pitch))
 
         with self.canvas.before:
             Color(1.0, 0.0, 0.0, mode='rgb')
-            Line(points=out, group='gesture', width=2)
+            Line(points=points.flat, group='gesture', width=self.line_width)
 
         return new_center_x + note_padding
 
@@ -226,6 +220,11 @@ class MultistrokeApp(App):
 
             (8.0, 2.0, 65),
             (10.0, 2.0, 76),
+
+            (12.0, 4.0, 0),
+            (16.0, 2.0, 0),
+            (18.0, 1.0, 0),
+            (19.0, 0.5, 0),
         ]
         self.surface.draw_ink_based_on_melody(
             staff_number=0,
@@ -262,7 +261,6 @@ class MultistrokeApp(App):
             points = np.array(sum(g.get_vectors(), []))
 
             # For saving inks
-            #
             # with open("ink/eighthnote", "wb") as data_file:
             #    pickle.dump(g.get_vectors(), data_file)
 
@@ -293,6 +291,11 @@ class MultistrokeApp(App):
 
         if best['name'].endswith('rest'):
             points = np.array(sum(g.get_vectors(), []))
+
+            # For saving inks
+            # with open("ink/eighthrest", "wb") as data_file:
+            #    pickle.dump(g.get_vectors(), data_file)
+
             x_pos = points[:, 0].mean()
             self.notes.append(Note(0, durations[best['name'][:-4]], g, x_pos))
             self.notes.sort(key=lambda note: note.x_pos)

@@ -1,6 +1,9 @@
 import numpy as np
 from dollarpy import Point
 
+def get_bounds(points):
+    return np.array([np.min(points, axis=0), np.max(points, axis=0)])
+
 def reject_outliers(points, acceptance_threshold=2, max_rounds=10, verbose=False):
     """Reject outliers from a dataset in rounds.
 
