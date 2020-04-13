@@ -38,6 +38,7 @@ import numpy as np
 import fluidsynth
 import pyaudio
 import wave
+import pickle
 
 from dollarpy import Recognizer, Template, Point
 
@@ -46,6 +47,7 @@ from historymanager import GestureHistoryManager
 from gesturedatabase import GestureDatabase
 from settings import MultistrokeSettingsContainer
 import util
+import math
 import transcribe
 
 
@@ -95,10 +97,65 @@ class NotePadSurface(GestureSurface):
             return False
         return super().on_touch_up(touch)
 
+    def get_spacing_between_lines(self):
+        return self.get_height(0, 0) - self.get_height(0, 1)
+
+    def get_gesture_from_value(self, value):
+        gesture = []
+        with open("ink/wholenote", "rb") as data_file:
+            gesture = pickle.load(data_file)
+        return gesture
+
+    def get_y_from_pitch(self, staff_number, pitch):
+        pitches = [77, 76, 74, 72, 71, 69, 67, 65, 64]
+        idx = pitches.index(pitch)
+        floor = int(math.floor(idx / 2.0))
+        ceil = int(math.ceil(idx / 2.0))
+        return (self.get_height(staff_number, floor) + self.get_height(staff_number, ceil)) / 2
+
+    def calculate_bounding_box(self, points):
+        x = points[:, 0]
+        y = points[:, 1]
+        return np.min(x), np.max(x), np.min(y), np.max(y)
+
+    def draw_ink_based_on_note(self, staff_number, x_center, note):
+        (_, value, pitch) = note
+        gesture = self.get_gesture_from_value(value)
+        points = np.array(sum(gesture, []))
+
+        # Normalize
+        minx, maxx, miny, maxy = self.calculate_bounding_box(points)
+        spacing = self.get_spacing_between_lines()
+        normalization_factor = spacing / (maxx - minx)
+        normalized_points = []
+        for point in points:
+            new_x = minx + (point[0] - minx) * normalization_factor
+            new_y = miny + (point[1] - miny) * normalization_factor
+            normalized_points.append((new_x, new_y))
+        points = np.array(normalized_points)
+
+        # Translate
+        points = points[util.reject_outliers(points[:, 1])]
+        center = points.mean(axis=0)
+        new_center_x = x_center
+        new_center_y = self.get_y_from_pitch(staff_number, pitch)
+        translation_x = new_center_x - center[0]
+        translation_y = new_center_y - center[1]
+        points = points + np.array([translation_x, translation_y])
+
+        out = []
+        for point in points:
+            out.append(point[0])
+            out.append(point[1])
+
+        with self.canvas.before:
+            Color(1.0, 0.0, 0.0, mode='rgb')
+            Line(points=out, group='gesture', width=2)
+
+        return x_center + 2.0 * spacing
 
 class NotePadContainer(ScatterPlane):
     pass
-
 
 class NotePadMenu(GridLayout):
     pass
@@ -142,6 +199,11 @@ class MultistrokeApp(App):
         self.handle_recognize_complete(result)
 
     def handle_recognize_complete(self, result, *l):
+
+        self.surface.draw_ink_based_on_note(
+            staff_number=0, x_center=10, note=(0.0, 1.0, 64),
+        )
+
         self.history.add_recognizer_result(result)
 
         # Don't bother creating Label if it's not going to be drawn
@@ -171,6 +233,11 @@ class MultistrokeApp(App):
 
         if best['name'].endswith('note'):
             points = np.array(sum(g.get_vectors(), []))
+
+            # For saving inks
+            #
+            # with open("ink/wholenote", "wb") as data_file:
+            #    pickle.dump(g.get_vectors(), data_file)
 
             # TODO: temp visualization
             center = points.mean(axis=0)
