@@ -131,7 +131,7 @@ class NotePadSurface(GestureSurface):
         if pitch:
             # Normalize notes - size of notehead should equal line spacing.
             normalization_factor = self.line_spacing / width
-            points = (points - mins) * normalization_factor
+            points = mins + (points - mins) * normalization_factor
 
             # Translate - set (0, 0) to center of notehead.
             points_without_outliers = points[util.reject_outliers(points[:, 1])]
