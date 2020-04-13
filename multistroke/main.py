@@ -24,6 +24,8 @@ described in the file multistroke.kv and managed from this file.
 import sys
 sys.path += ['.', '..']
 
+durations = {'eighth': 1/8, 'quarter': 1/4, 'half': 1/2, 'whole': 1}
+
 # Kivy
 from kivy.app import App
 from kivy.uix.gridlayout import GridLayout
@@ -102,8 +104,15 @@ class NotePadSurface(GestureSurface):
 
     def get_gesture_from_value(self, value):
         gesture = []
-        with open("ink/wholenote", "rb") as data_file:
-            gesture = pickle.load(data_file)
+        value = value / 4
+        print('val', value)
+        for name, duration in durations.items():
+            print('iter', name, duration)
+            if duration == value:
+                filename = name + 'note'
+                with open("ink/" + filename, "rb") as data_file:
+                    gesture = pickle.load(data_file)
+                return gesture
         return gesture
 
     def get_y_from_pitch(self, staff_number, pitch):
@@ -135,8 +144,8 @@ class NotePadSurface(GestureSurface):
         points = np.array(normalized_points)
 
         # Translate
-        points = points[util.reject_outliers(points[:, 1])]
-        center = points.mean(axis=0)
+        points_without_outliers = points[util.reject_outliers(points[:, 1])]
+        center = points_without_outliers.mean(axis=0)
         new_center_x = x_center
         new_center_y = self.get_y_from_pitch(staff_number, pitch)
         translation_x = new_center_x - center[0]
@@ -200,8 +209,9 @@ class MultistrokeApp(App):
 
     def handle_recognize_complete(self, result, *l):
 
+        ## Temporary for debugging purposes.
         self.surface.draw_ink_based_on_note(
-            staff_number=0, x_center=10, note=(0.0, 1.0, 64),
+            staff_number=0, x_center=20, note=(0.0, 4.0, 69),
         )
 
         self.history.add_recognizer_result(result)
@@ -229,14 +239,12 @@ class MultistrokeApp(App):
         g._result_label = Label(text=text, markup=True, size_hint=(None, None),
                                 center=(g.bbox['minx'], g.bbox['miny']))
 
-        durations = {'eighth': 1/8, 'quarter': 1/4, 'half': 1/2, 'whole': 1}
-
         if best['name'].endswith('note'):
             points = np.array(sum(g.get_vectors(), []))
 
             # For saving inks
             #
-            # with open("ink/wholenote", "wb") as data_file:
+            # with open("ink/eighthnote", "wb") as data_file:
             #    pickle.dump(g.get_vectors(), data_file)
 
             # TODO: temp visualization
