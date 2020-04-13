@@ -275,9 +275,6 @@ class GestureVisualizer(Widget):
                 h = (maxy - miny) * to_self
                 append(y + ypos + (height - h) * .85 / 2)
 
-            print("History")
-            # print(out)
-            print(col)
             with self.canvas:
                 Color(col[0], col[1], col[2], mode='rgb')
                 Line(points=out, group='gesture', width=2)
