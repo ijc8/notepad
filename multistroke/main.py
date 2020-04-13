@@ -163,7 +163,21 @@ class NotePadSurface(GestureSurface):
         return new_center_x + note_padding
 
 class NotePadContainer(ScatterPlane):
-    pass
+    # Don't steal events from the menu above this...
+    def on_touch_down(self, touch):
+        if not self.y < touch.y < self.top:
+            return False
+        super().on_touch_down(touch)
+
+    def on_touch_up(self, touch):
+        if not self.y < touch.y < self.top:
+            return False
+        super().on_touch_up(touch)
+
+    def on_touch_move(self, touch):
+        if not self.y < touch.y < self.top:
+            return False
+        super().on_touch_move(touch)
 
 class NotePadMenu(GridLayout):
     pass
@@ -207,30 +221,6 @@ class MultistrokeApp(App):
         self.handle_recognize_complete(result)
 
     def handle_recognize_complete(self, result, *l):
-
-        ## Temporary for debugging purposes.
-        melody = [
-            (0.0, 1.0, 64),
-            (1.0, 1.0, 67),
-            (2.0, 1.0, 69),
-            (3.0, 0.5, 64),
-            (3.5, 0.5, 71),
-
-            (4.0, 4.0, 64),
-
-            (8.0, 2.0, 65),
-            (10.0, 2.0, 76),
-
-            (12.0, 4.0, 0),
-            (16.0, 2.0, 0),
-            (18.0, 1.0, 0),
-            (19.0, 0.5, 0),
-        ]
-        self.surface.draw_ink_based_on_melody(
-            staff_number=0,
-            x_start=20,
-            melody=melody,
-        )
 
         self.history.add_recognizer_result(result)
 
