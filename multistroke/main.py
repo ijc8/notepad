@@ -105,9 +105,7 @@ class NotePadSurface(GestureSurface):
     def get_gesture_from_value(self, value):
         gesture = []
         value = value / 4
-        print('val', value)
         for name, duration in durations.items():
-            print('iter', name, duration)
             if duration == value:
                 filename = name + 'note'
                 with open("ink/" + filename, "rb") as data_file:
@@ -127,14 +125,21 @@ class NotePadSurface(GestureSurface):
         y = points[:, 1]
         return np.min(x), np.max(x), np.min(y), np.max(y)
 
-    def draw_ink_based_on_note(self, staff_number, x_center, note):
+    def draw_ink_based_on_melody(self, staff_number, x_start, melody):
+        for note in melody:
+            x_next_start = self.draw_ink_based_on_note(staff_number, x_start, note)
+            x_start = x_next_start
+
+    def draw_ink_based_on_note(self, staff_number, x_start, note):
         (_, value, pitch) = note
         gesture = self.get_gesture_from_value(value)
         points = np.array(sum(gesture, []))
+        spacing = self.get_spacing_between_lines()
+        bar_size = 12 * spacing
+        note_padding = (bar_size * (value / 4.0)) / 2
 
         # Normalize
         minx, maxx, miny, maxy = self.calculate_bounding_box(points)
-        spacing = self.get_spacing_between_lines()
         normalization_factor = spacing / (maxx - minx)
         normalized_points = []
         for point in points:
@@ -146,7 +151,7 @@ class NotePadSurface(GestureSurface):
         # Translate
         points_without_outliers = points[util.reject_outliers(points[:, 1])]
         center = points_without_outliers.mean(axis=0)
-        new_center_x = x_center
+        new_center_x = x_start + note_padding
         new_center_y = self.get_y_from_pitch(staff_number, pitch)
         translation_x = new_center_x - center[0]
         translation_y = new_center_y - center[1]
@@ -161,7 +166,7 @@ class NotePadSurface(GestureSurface):
             Color(1.0, 0.0, 0.0, mode='rgb')
             Line(points=out, group='gesture', width=2)
 
-        return x_center + 2.0 * spacing
+        return new_center_x + note_padding
 
 class NotePadContainer(ScatterPlane):
     pass
@@ -210,8 +215,22 @@ class MultistrokeApp(App):
     def handle_recognize_complete(self, result, *l):
 
         ## Temporary for debugging purposes.
-        self.surface.draw_ink_based_on_note(
-            staff_number=0, x_center=20, note=(0.0, 4.0, 69),
+        melody = [
+            (0.0, 1.0, 64),
+            (1.0, 1.0, 67),
+            (2.0, 1.0, 69),
+            (3.0, 0.5, 64),
+            (3.5, 0.5, 71),
+
+            (4.0, 4.0, 64),
+
+            (8.0, 2.0, 65),
+            (10.0, 2.0, 76),
+        ]
+        self.surface.draw_ink_based_on_melody(
+            staff_number=0,
+            x_start=20,
+            melody=melody,
         )
 
         self.history.add_recognizer_result(result)
