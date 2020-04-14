@@ -278,6 +278,7 @@ class MultistrokeApp(App):
             pitches = [64, 65, 67, 69, 71, 72, 74, 76, 77][::-1]
             pitch = pitches[min(range(0, 9), key=lambda i: np.abs(self.surface.get_height(0, i / 2) - note_height))]
             note = Note(pitch, durations[best['name'][:-4]], x_pos)
+
             self.notes.append(note)
             self.notes.sort(key=lambda note: note.x_pos)
             # Hacky way to change note color to black once it's registered.
@@ -436,6 +437,14 @@ class MultistrokeApp(App):
 
         return data, sr
 
+    def calculate_x_start(self):
+        if len(self.notes) == 0:
+            return 20
+
+        bar_size = 12 * self.surface.line_spacing
+        note_padding = (bar_size * self.notes[-1].duration) / 2
+        return self.notes[-1].x_pos + note_padding
+
     def record_rhythm(self):
         audio, sr = self.record()
         rhythm = list(transcribe.extract_rhythm(audio, sr, self.tempo, verbose=True))
@@ -445,7 +454,7 @@ class MultistrokeApp(App):
         for (start, end) in zip(rhythm, rhythm[1:] + [4]):
             melody.append((start, end - start, 64))
         print(melody)
-        xs = self.surface.draw_ink_based_on_melody(0, 20, melody)
+        xs = self.surface.draw_ink_based_on_melody(0, self.calculate_x_start(), melody)
         self.notes += [Note(pitch, value, x) for (_, value, pitch), x in zip(melody, xs)]
 
     def record_melody(self):
@@ -455,7 +464,7 @@ class MultistrokeApp(App):
         # TODO: draw ledger lines
         melody = [(s, v, (p - 12) % 24 + 60 if p else 0) for s, v, p in melody]
         print(melody)
-        xs = self.surface.draw_ink_based_on_melody(0, 20, melody)
+        xs = self.surface.draw_ink_based_on_melody(0, self.calculate_x_start(), melody)
         self.notes += [Note(pitch, value, x) for (_, value, pitch), x in zip(melody, xs)]
         print('melody', melody)
 
