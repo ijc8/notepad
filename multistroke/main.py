@@ -86,17 +86,38 @@ class NotePadSurface(GestureSurface):
                                 center=(400, 950))
         self.add_widget(label)
 
+        play_gesture = None
+        with open("ink/play", "rb") as data_file:
+            play_gesture = pickle.load(data_file)
+
+        with self.canvas.before:
+            Line(points=np.array(sum(play_gesture, [])).flat, width=self.line_width)
+
         text = 'Stop:'
         text = f'[color=#000000]{text}[/color]'
         label = Label(text=text, markup=True, size_hint=(None, None),
                                 center=(400, 900))
         self.add_widget(label)
 
+        stop_gesture = None
+        with open("ink/stop", "rb") as data_file:
+            stop_gesture = pickle.load(data_file)
+
+        with self.canvas.before:
+            Line(points=np.array(sum(stop_gesture, [])).flat, width=self.line_width)
+
         text = 'Loop:'
         text = f'[color=#000000]{text}[/color]'
         label = Label(text=text, markup=True, size_hint=(None, None),
                                 center=(400, 850))
         self.add_widget(label)
+
+        loop_gesture = None
+        with open("ink/loop", "rb") as data_file:
+            loop_gesture = pickle.load(data_file)
+
+        with self.canvas.before:
+            Line(points=np.array(sum(loop_gesture, [])).flat, width=self.line_width)
 
     def get_height(self, staff_number, line_number):
         return self.size[1] - self.staff_spacing * (staff_number + 1) - self.line_spacing * (line_number - 2)
@@ -360,15 +381,25 @@ class MultistrokeApp(App):
 
         # Check is same as 'check' mark.
         if best['name'].endswith('play'):
+            # For saving inks
+            # with open("ink/play", "wb") as data_file:
+            #    pickle.dump(g.get_vectors(), data_file)
             self.playback()
 
         # Loop sign is half circle sign.
         if best['name'].endswith('loop'):
+            # For saving inks
+            with open("ink/loop", "wb") as data_file:
+                pickle.dump(g.get_vectors(), data_file)
+
             self.shouldLoop = True
             self.loop()
 
         # Stop sign is 'X' mark
         if best['name'].endswith('stop'):
+            # For saving inks
+            with open("ink/stop", "wb") as data_file:
+                pickle.dump(g.get_vectors(), data_file)
             self.shouldLoop = False
 
         self.surface.add_widget(g._result_label)
