@@ -120,9 +120,12 @@ class NotePadSurface(GestureSurface):
         return self.get_height(staff_number, idx / 2)
 
     def draw_ink_based_on_melody(self, staff_number, x_start, melody):
+        xs = []
         for note in melody:
+            xs.append(x_start)
             x_next_start = self.draw_ink_based_on_note(staff_number, x_start, note)
             x_start = x_next_start
+        return xs
 
     def align_note(self, note, points):
         "Normalize and translate notes so (0, 0) is where the note should be pinned on a staff."
@@ -429,8 +432,15 @@ class MultistrokeApp(App):
 
     def record_rhythm(self):
         audio, sr = self.record()
-        rhythm = transcribe.extract_rhythm(audio, sr, self.tempo, verbose=True)
+        rhythm = list(transcribe.extract_rhythm(audio, sr, self.tempo, verbose=True))
         print('rhythm', rhythm)
+        # HACK for prototype demo
+        melody = []
+        for (start, end) in zip(rhythm, rhythm[1:] + [4]):
+            melody.append((start, end - start, 64))
+        print(melody)
+        xs = self.surface.draw_ink_based_on_melody(0, 20, melody)
+        self.notes += [Note(pitch, value, x) for (_, value, pitch), x in zip(melody, xs)]
 
     def record_melody(self):
         audio, sr = self.record()
@@ -439,8 +449,8 @@ class MultistrokeApp(App):
         # TODO: draw ledger lines
         melody = [(s, v, (p - 12) % 24 + 60 if p else 0) for s, v, p in melody]
         print(melody)
-        self.surface.draw_ink_based_on_melody(0, 20, melody)
-        self.notes += melody
+        xs = self.surface.draw_ink_based_on_melody(0, 20, melody)
+        self.notes += [Note(pitch, value, x) for (_, value, pitch), x in zip(melody, xs)]
         print('melody', melody)
 
     def beats_to_ticks(self, beats):

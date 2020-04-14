@@ -78,7 +78,7 @@ def extract_rhythm(audio, sr, bpm, quantization_unit=0.5, verbose=False):
         ax2.vlines(ticks, 0, 1)
         plt.show()
 
-    return out
+    return np.unique(out)
 
 
 def freq_to_pitch(freq):
