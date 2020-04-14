@@ -115,8 +115,8 @@ class NotePadSurface(GestureSurface):
         # Special case: put rests in the middle of the staff.
         if pitch == 0:
             return self.get_height(staff_number, 2)
-        pitches = [77, 76, 74, 72, 71, 69, 67, 65, 64]
-        idx = pitches.index(pitch)
+        pitches = [79, 77, 76, 74, 72, 71, 69, 67, 65, 64, 62]
+        idx = pitches.index(pitch) - 1
         return self.get_height(staff_number, idx / 2)
 
     def draw_ink_based_on_melody(self, staff_number, x_start, melody):
@@ -377,13 +377,13 @@ class MultistrokeApp(App):
 
         # Play four beeps to indicate tempo and key.
         for i in range(4):
-            self.seq.note_on(time=self.beats_to_ticks(i), absolute=False, channel=0, key=60, dest=self.synthID, velocity=80)
+            self.seq.note_on(time=self.beats_to_ticks(i + 1), absolute=False, channel=0, key=60, dest=self.synthID, velocity=80)
 
         sr = 44100
         frame_size = 1024
         # TODO: for now, locked to one measure of recording. figure out actual policy.
-        # (9 beats to include the calibration measure + latency allowance)
-        length = 9 / (self.tempo / 60)  # seconds
+        # (10 beats to include the calibration measure + latency allowance on each side)
+        length = 10 / (self.tempo / 60)  # seconds
         print("recording")
         stream = self.audio.open(format=pyaudio.paInt16, channels=1,
                                  rate=sr, input=True,
@@ -401,6 +401,11 @@ class MultistrokeApp(App):
         stream.close()
 
         data = b''.join(frames)
+        data = np.frombuffer(data, dtype=np.int16).astype(np.int)
+        # Throw out the first five beats plus latency, and the last beat.
+        start = (60 / self.tempo) * 5 + latency
+        end = (60 / self.tempo) * 9 + latency
+        data = data[int(start * sr):int(end * sr)]
 
         if save:
             outfile = 'recorded.wav'
@@ -408,15 +413,10 @@ class MultistrokeApp(App):
             f.setnchannels(1)
             f.setsampwidth(2)
             f.setframerate(sr)
-            f.writeframes(data)
+            f.writeframes(data.astype(np.int16).tobytes())
             f.close()
             print(f'saved recording to {outfile}.')
 
-        data = np.frombuffer(data, dtype=np.int16).astype(np.int)
-        # Throw out the first four beats plus latency, and the last beat.
-        start = (60 / self.tempo) * 4 + latency
-        end = (60 / self.tempo) * 8 + latency
-        data = data[int(start * sr):int(end * sr)]
         return data, sr
 
     def record_rhythm(self):
@@ -427,6 +427,12 @@ class MultistrokeApp(App):
     def record_melody(self):
         audio, sr = self.record()
         melody = transcribe.extract_melody(audio, sr, self.tempo, verbose=True)
+        # For the demo, we're going to keep this in the treble clef: say, in a range of 60 to 84.
+        # TODO: draw ledger lines
+        melody = [(s, v, (p - 12) % 24 + 60 if p else 0) for s, v, p in melody]
+        print(melody)
+        self.surface.draw_ink_based_on_melody(0, 20, melody)
+        self.notes += melody
         print('melody', melody)
 
     def beats_to_ticks(self, beats):
