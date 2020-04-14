@@ -152,6 +152,31 @@ class NotePadSurface(GestureSurface):
 
     def draw_ink_based_on_note(self, staff_number, x_start, note):
         (_, value, pitch) = note
+        if value/4 not in durations.values():
+            # HACK
+            # possiblities: 1.5 -> dotted quarter
+            #               2.5 -> ???
+            #               3 -> dotted half note
+            #               3.5 -> double-dotted half note
+            # new plan: 1.5 -> 1 + 1/2
+            #           2.5 -> 2 + 1/2
+            #             3 -> 2 + 1
+            #           3.5 -> 2 + 1 + 1/2
+            hack_map = {1.5: (1, 1/2),
+                        2.5: (2, 1/2),
+                        3.0: (2, 1),
+                        3.5: (2, 1, 1/2)}
+            values = hack_map[value]
+            last_point = None
+            for value in values:
+                next_point = (x_start + 25, self.get_y_from_pitch(staff_number, pitch) - 20)
+                x_start = self.draw_ink_based_on_note(staff_number, x_start, (None, value, pitch))
+                if last_point:
+                    with self.canvas.before:
+                        Line(points=last_point + next_point, width=self.line_width)
+                last_point = next_point
+            return x_start
+
         gesture = self.get_note_gesture(value, pitch)
         points = np.array(sum(gesture, []))
         bar_size = 12 * self.line_spacing
