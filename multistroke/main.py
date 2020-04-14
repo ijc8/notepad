@@ -350,8 +350,14 @@ class MultistrokeApp(App):
             t += t_duration
         return t
 
-    # ==  NotePad Menu Functions ==
-    # TODO(mergen, ian): Implement these.
+    def clear(self):
+        self.undo_history = []
+        self.redo_history = []
+        self.notes = []
+        self.surface._gestures = []
+        self.surface.canvas.clear()
+        return
+
     def undo(self):
         if len(self.undo_history) == 0:
             return
