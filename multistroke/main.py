@@ -29,7 +29,7 @@ durations = {'eighth': 1/8, 'quarter': 1/4, 'half': 1/2, 'whole': 1}
 # Kivy
 from kivy.app import App
 from kivy.uix.gridlayout import GridLayout
-from kivy.uix.gesturesurface import GestureSurface
+from gesturesurface import GestureSurface
 from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
 from kivy.uix.label import Label
 from kivy.uix.scatter import ScatterPlane
@@ -272,8 +272,8 @@ class MultistrokeApp(App):
             self.add_to_history_for_undo_redo(g)
             return
 
-        text = 'Name: [b]%s[/b]\nScore: [b]%f[/b]\nDistance: [b]%f[/b]' % (
-                best['name'], best['score'], best['dist'])
+        text = 'Name: [b]%s[/b]' % (
+                best['name'])
 
         text = f'[color=#000000]{text}[/color]'
         g._result_label = Label(text=text, markup=True, size_hint=(None, None),
@@ -287,15 +287,17 @@ class MultistrokeApp(App):
             #    pickle.dump(g.get_vectors(), data_file)
 
             # TODO: temp visualization
+
             center = points.mean(axis=0)
             points = points[util.reject_outliers(points[:, 1])]
             new_center = points.mean(axis=0)
             radius = 5
-            with self.surface.canvas:
-                Color(1, 1, 1, 1)
-                Ellipse(pos=center - radius, size=(radius * 2, radius * 2))
-                Color(0, 0, 0, 1)
-                Ellipse(pos=new_center - radius, size=(radius * 2, radius * 2))
+            if self.debug:
+                with self.surface.canvas:
+                    Color(1, 1, 1, 1)
+                    Ellipse(pos=center - radius, size=(radius * 2, radius * 2))
+                    Color(0, 0, 0, 1)
+                    Ellipse(pos=new_center - radius, size=(radius * 2, radius * 2))
             # end tmp
 
             note_height = points[:, 1].mean()
@@ -311,7 +313,7 @@ class MultistrokeApp(App):
             for i0, i1 in zip(group, group[2:]):
                 if isinstance(i0, Color) and isinstance(i1, Line):
                     i0.rgba = (0, 0, 0, 1)
-            g._cleanup_time = None
+            g._cleanup_time = -1
             self.add_to_history_for_undo_redo(g, note)
 
         if best['name'].endswith('rest'):
@@ -330,7 +332,7 @@ class MultistrokeApp(App):
             for i0, i1 in zip(group, group[2:]):
                 if isinstance(i0, Color) and isinstance(i1, Line):
                     i0.rgba = (0, 0, 0, 1)
-            g._cleanup_time = None
+            g._cleanup_time = -1
             self.add_to_history_for_undo_redo(g, note)
 
         # Check is same as 'check' mark.
