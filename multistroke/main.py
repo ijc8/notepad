@@ -75,6 +75,29 @@ class NotePadSurface(GestureSurface):
                 for line in range(5):
                     self.lines.append(Line(points=self.get_points(staff, line)))
 
+        text = 'Gestures'
+        text = f'[color=#000000]{text}[/color]'
+        label = Label(text=text, markup=True, size_hint=(None, None),
+                                center=(500, 1000))
+        self.add_widget(label)
+        text = 'Play:'
+        text = f'[color=#000000]{text}[/color]'
+        label = Label(text=text, markup=True, size_hint=(None, None),
+                                center=(400, 950))
+        self.add_widget(label)
+
+        text = 'Stop:'
+        text = f'[color=#000000]{text}[/color]'
+        label = Label(text=text, markup=True, size_hint=(None, None),
+                                center=(400, 900))
+        self.add_widget(label)
+
+        text = 'Loop:'
+        text = f'[color=#000000]{text}[/color]'
+        label = Label(text=text, markup=True, size_hint=(None, None),
+                                center=(400, 850))
+        self.add_widget(label)
+
     def get_height(self, staff_number, line_number):
         return self.size[1] - self.staff_spacing * (staff_number + 1) - self.line_spacing * (line_number - 2)
 
