@@ -89,24 +89,26 @@ def freq_to_pitch(freq):
 
 
 def extract_melody(audio, sr, bpm, quantization_unit=0.5, verbose=False):
-    hop_size = 128
-    # frame_size = int(sr * quantization_unit / (bpm / 60)) // 4
-    frame_size = 2048
+    #hop_size = 128
+    frame_size = int(sr * quantization_unit / (bpm / 60)) // 16
+    hop_size = frame_size
+    #frame_size = 2048
 
     audio = es.EqualLoudness(sampleRate=sr)(audio)
     replayGain = es.ReplayGain()(audio)
     factor = essentia.db2amp(replayGain + 6)
     audio = es.Scale(factor=factor)(audio)
-    freqs, confidence = es.PredominantPitchMelodia(sampleRate=sr, hopSize=hop_size, frameSize=frame_size)(audio)
-    freqs = es.PitchFilter()(freqs, confidence)
+    # freqs, confidence = es.PredominantPitchMelodia(sampleRate=sr, hopSize=hop_size, frameSize=frame_size)(audio)
+    freqs, confidence = es.PitchMelodia(sampleRate=sr, hopSize=hop_size, frameSize=frame_size)(audio)
+    # freqs = es.PitchFilter()(freqs, confidence)
 
     pitches = freq_to_pitch(freqs)
     # HACK: quantize to C major, since we don't yet support sharps and flats anyway.
     # if I have time, I will switch this to consider pitches within each quantization_unit.
     # I think that will give better results than trying to get exact measures and then rounding them.
     key = sum((list(np.array([0, 2, 4, 5, 7, 9, 11]) + i*12) for i in range(8)), [])
-    for i in range(len(pitches)):
-        pitches[i] = min(key, key=lambda p: abs(p - pitches[i]))
+    # for i in range(len(pitches)):
+        # pitches[i] = min(key, key=lambda p: abs(p - pitches[i]))
 
     if verbose:
         fig, (ax0, ax1, ax2, ax3, ax4) = plt.subplots(5, sharex=True)
@@ -122,8 +124,45 @@ def extract_melody(audio, sr, bpm, quantization_unit=0.5, verbose=False):
         ax4.set_title('Quantized melody')
 
     min_duration = quantization_unit / (bpm / 60)
-    notes = np.array(es.PitchContourSegmentation(hopSize=hop_size, minDuration=min_duration, sampleRate=sr, rmsThreshold=-1, pitchDistanceThreshold=90)(freqs, audio)).T
-    print(notes)
+    # notes = np.array(es.PitchContourSegmentation(hopSize=hop_size, minDuration=min_duration, sampleRate=sr, rmsThreshold=-1, pitchDistanceThreshold=90)(freqs, audio)).T
+    notes = []
+    num_beats = int(np.ceil(len(audio) / sr * (bpm / 60)))
+    ticks = np.arange(num_beats * 2 + 1) / (bpm / 60) / 2
+    group_start = None
+    group_pitch = None
+    print(ticks)
+    for start, end in zip(ticks, ticks[1:]):
+        print('???', start, end)
+        window = pitches[int(start * sr / hop_size):int(end * sr / hop_size)]
+        valid = window > 0
+        window = window[valid]
+        if np.sum(valid) < len(window) * 2/3:
+            p = 0
+        else:
+            # p = np.median(window)
+            p = min(key, key=lambda p: np.sum(np.abs(p - window)))
+        if np.isnan(p):
+            ip = 0
+        else:
+            ip = int(round(p))
+        if group_pitch != ip:
+            if group_pitch is not None:
+                group_duration = start - group_start
+                if group_duration:
+                    thing = (group_start * (bpm / 60), group_duration * (bpm / 60), group_pitch)
+                    print('THE THING I AM APPENDING IS', thing)
+                    notes.append(thing)
+            group_pitch = ip
+            group_start = start
+        print(start, end, int(start * sr / hop_size), int(end * sr / hop_size), len(pitches), p, ip)
+    if group_start:
+        group_duration = start - group_start
+        if group_duration:
+            thing = (group_start * (bpm / 60), group_duration * (bpm / 60), group_pitch)
+            print('THE THING I AM APPENDING IS', thing)
+            notes.append(thing)
+    print('quantized notes', notes)
+    quantized_notes = notes
 
     if verbose:
         reconstructed = np.zeros(freqs.shape)
@@ -132,20 +171,20 @@ def extract_melody(audio, sr, bpm, quantization_unit=0.5, verbose=False):
             reconstructed[int(start * factor):int((start + duration) * factor)] = pitch
         ax3.plot(time, reconstructed)
 
-    quantized_notes = []
-    prev_end = 0
-    for start, duration, pitch in notes:
-        if verbose:
-            print(start, duration, pitch)
-        start = quantize(start * (bpm / 60), quantization_unit)
-        value = quantize(duration * (bpm / 60), quantization_unit)
-        if verbose:
-            print(start, value, pitch)
-        # Note that this explicitly includes rests as notes with pitch = 0.
-        if start != prev_end:
-            quantized_notes.append((prev_end, start - prev_end, 0))
-        prev_end = start + value
-        quantized_notes.append((start, value, pitch))
+    # quantized_notes = []
+    # prev_end = 0
+    # for start, duration, pitch in notes:
+    #     if verbose:
+    #         print(start, duration, pitch)
+    #     start = quantize(start * (bpm / 60), quantization_unit)
+    #     value = quantize(duration * (bpm / 60), quantization_unit)
+    #     if verbose:
+    #         print(start, value, pitch)
+    #     # Note that this explicitly includes rests as notes with pitch = 0.
+    #     if start != prev_end:
+    #         quantized_notes.append((prev_end, start - prev_end, 0))
+    #     prev_end = start + value
+    #     quantized_notes.append((start, value, pitch))
 
     if verbose:
         reconstructed = np.zeros(freqs.shape)
@@ -168,14 +207,15 @@ def test_extract_rhythm():
 
 
 def test_extract_melody():
-    audio = es.MonoLoader(filename='test/midi_melody.wav', sampleRate=44100)()
-    melody = extract_melody(audio, 44100, 120, verbose=True)
+    # audio = es.MonoLoader(filename='test/midi_melody.wav', sampleRate=44100)()
+    # melody = extract_melody(audio, 44100, 120, verbose=True)
     # TODO more testing
     # print(melody)
     # print(melody == [(0.0, 1.0, 64.0), (1.0, 1.0, 67.0), (2.0, 1.0, 69.0), (3.0, 0.5, 0), (3.5, 1.0, 64.0), (4.5, 1.0, 67.0), (5.5, 0.5, 70.0), (6.0, 1.0, 69.0), (7.0, 1.0, 0), (8.0, 1.0, 64.0), (9.0, 1.0, 67.0), (10.0, 1.0, 69.0), (11.0, 0.5, 0), (11.5, 1.0, 67.0), (12.5, 1.0, 64.0)])
 
-    # audio = es.MonoLoader(filename='test/whistle_melody.wav', sampleRate=44100)()
-    # melody = extract_melody(audio, 44100, 120, verbose=True)
+    audio = es.MonoLoader(filename='test/whistle_melody.wav', sampleRate=44100)()
+    melody = extract_melody(audio, 44100, 120, verbose=True)
+    print(melody)
 
 
 if __name__ == '__main__':

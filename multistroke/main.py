@@ -194,7 +194,7 @@ class NotePadSurface(GestureSurface):
             for value in values:
                 next_point = (x_start + 25, self.get_y_from_pitch(staff_number, pitch) - 20)
                 x_start = self.draw_ink_based_on_note(staff_number, x_start, (None, value, pitch))
-                if last_point:
+                if last_point and pitch > 0:
                     with self.canvas.before:
                         Line(points=last_point + next_point, width=self.line_width)
                 last_point = next_point
@@ -510,9 +510,14 @@ class MultistrokeApp(App):
     def record_melody(self):
         audio, sr = self.record()
         melody = transcribe.extract_melody(audio, sr, self.tempo, verbose=True)
-        # For the demo, we're going to keep this in the treble clef: say, in a range of 60 to 84.
+        # For the demo, we're going to keep this in the treble clef: say, in a range of 62 to 79.
         # TODO: draw ledger lines
-        melody = [(s, v, (p - 12) % 24 + 60 if p else 0) for s, v, p in melody]
+        def get_in_range(p):
+            p = (p - 62) % 24
+            if p > 79 - 62:
+                p %= 12
+            return p + 62
+        melody = [(s, v, get_in_range(p) if p else 0) for s, v, p in melody]
         print(melody)
         xs = self.surface.draw_ink_based_on_melody(0, self.calculate_x_start(), melody)
         self.notes += [Note(pitch, value, x) for (_, value, pitch), x in zip(melody, xs)]
