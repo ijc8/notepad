@@ -473,6 +473,7 @@ class MultistrokeApp(App):
         self.notes = []
         self.seq = fluidsynth.Sequencer(time_scale=self.time_scale)
         self.fs = fluidsynth.Synth()
+        self.debug = False
 
         sfid = None
         if sys.platform == "darwin":
@@ -542,7 +543,9 @@ class MultistrokeApp(App):
         layout = GridLayout(cols=1)
         layout.add_widget(NotePadMenu())
         layout.add_widget(self.manager)
-        layout.add_widget(MainMenu())
+
+        if (self.debug):
+            layout.add_widget(MainMenu())
         return layout
 
 
