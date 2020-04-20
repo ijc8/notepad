@@ -252,9 +252,12 @@ class MultistrokeApp(App):
 
         self.handle_recognize_complete(result)
 
-    def add_to_history_for_undo_redo(self, gesture, note=None):
+    def add_to_history_for_undo_redo(self, gestures, notes):
         self.redo_history = []
-        self.undo_history.append((gesture.id, gesture.get_vectors(), note))
+        vec = []
+        for gesture, note in zip(gestures, notes):
+            vec.append((gesture.id, gesture.get_vectors(), note))
+        self.undo_history.append(vec)
 
     def handle_recognize_complete(self, result, *l):
         self.history.add_recognizer_result(result)
@@ -273,7 +276,7 @@ class MultistrokeApp(App):
                 if isinstance(i0, Color) and isinstance(i1, Line):
                     i0.rgba = (0, 0, 0, 1)
             g._cleanup_time = None
-            self.add_to_history_for_undo_redo(g)
+            self.add_to_history_for_undo_redo([g], [None])
             return
 
         text = '[b]%s[/b]' % (best['name'])
@@ -317,7 +320,7 @@ class MultistrokeApp(App):
                 if isinstance(i0, Color) and isinstance(i1, Line):
                     i0.rgba = (0, 0, 0, 1)
             g._cleanup_time = -1
-            self.add_to_history_for_undo_redo(g, note)
+            self.add_to_history_for_undo_redo([g], [note])
 
         if best['name'].endswith('rest'):
             points = np.array(sum(g.get_vectors(), []))
@@ -336,7 +339,7 @@ class MultistrokeApp(App):
                 if isinstance(i0, Color) and isinstance(i1, Line):
                     i0.rgba = (0, 0, 0, 1)
             g._cleanup_time = -1
-            self.add_to_history_for_undo_redo(g, note)
+            self.add_to_history_for_undo_redo([g], [note])
 
         # Check is same as 'check' mark.
         if best['name'].endswith('play'):
@@ -357,8 +360,8 @@ class MultistrokeApp(App):
         # Stop sign is 'X' mark
         if best['name'].endswith('stop'):
             # For saving inks
-            with open("ink/stop", "wb") as data_file:
-                pickle.dump(g.get_vectors(), data_file)
+            # with open("ink/stop", "wb") as data_file:
+            #    pickle.dump(g.get_vectors(), data_file)
             self.shouldLoop = False
 
         self.surface.add_widget(g._result_label)
@@ -402,32 +405,39 @@ class MultistrokeApp(App):
     def undo(self):
         if len(self.undo_history) == 0:
             return
-        group_id, vectors, note = self.undo_history[-1]
+        vec = self.undo_history[-1]
         self.undo_history.pop()
-        self.surface.canvas.remove_group(group_id)
-        note_copy = None
-        if note:
-            note_copy = copy.deepcopy(note)
-            self.notes.remove(note)
-            self.notes.sort(key=lambda note: note.x_pos)
 
-        self.redo_history.append((group_id, vectors, note_copy))
+        vec_copy = []
+        for val in vec:
+            group_id, vectors, note = val
+            self.surface.canvas.remove_group(group_id)
+            note_copy = None
+            if note:
+                note_copy = copy.deepcopy(note)
+                self.notes.remove(note)
+            vec_copy.append((group_id, vectors, note_copy))
+
+        self.notes.sort(key=lambda note: note.x_pos)
+        self.redo_history.append(vec_copy)
 
     def redo(self):
         if len(self.redo_history) == 0:
             return
 
-        group_id, vectors, note = self.redo_history[-1]
+        vec = self.redo_history[-1]
         self.redo_history.pop()
 
-        vectors = np.array(vectors)
-        with self.surface.canvas:
-            Color(0, 0, 0, 1)
-            Line(points=vectors.flat, group=group_id, width=2)
+        for val in vec:
+            group_id, vectors, note = val
+            vectors = np.array(vectors)
+            with self.surface.canvas:
+                Color(0, 0, 0, 1)
+                Line(points=vectors.flat, group=group_id, width=2)
+            self.notes.append(note)
 
-        self.notes.append(note)
         self.notes.sort(key=lambda note: note.x_pos)
-        self.undo_history.append((group_id, vectors, note))
+        self.undo_history.append(vec)
 
 
     def record(self, save=False):
