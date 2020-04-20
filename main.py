@@ -176,7 +176,7 @@ class NotePadSurface(GestureSurface):
                 next_point = (x_start + 25, self.get_y_from_pitch(staff_number, pitch) - 20)
                 x_start = self.draw_ink_based_on_note(staff_number, x_start, (None, value, pitch))
                 if last_point and pitch > 0:
-                    with self.canvas.before:
+                    with self.canvas:
                         Line(points=last_point + next_point, width=self.line_width)
                 last_point = next_point
             return x_start
@@ -189,7 +189,7 @@ class NotePadSurface(GestureSurface):
         new_center_x = x_start + note_padding
         points += (new_center_x, self.get_y_from_pitch(staff_number, pitch))
 
-        with self.canvas.before:
+        with self.canvas:
             Color(1.0, 0.0, 0.0, mode='rgb')
             Line(points=points.flat, group='gesture', width=self.line_width)
 
