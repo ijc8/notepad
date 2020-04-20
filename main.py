@@ -276,8 +276,7 @@ class MultistrokeApp(App):
             self.add_to_history_for_undo_redo(g)
             return
 
-        text = 'Name: [b]%s[/b]' % (
-                best['name'])
+        text = '[b]%s[/b]' % (best['name'])
 
         text = f'[color=#000000]{text}[/color]'
         g._result_label = Label(text=text, markup=True, size_hint=(None, None),
@@ -349,8 +348,8 @@ class MultistrokeApp(App):
         # Loop sign is half circle sign.
         if best['name'].endswith('loop'):
             # For saving inks
-            with open("ink/loop", "wb") as data_file:
-                pickle.dump(g.get_vectors(), data_file)
+            # with open("ink/loop", "wb") as data_file:
+            #    pickle.dump(g.get_vectors(), data_file)
 
             self.shouldLoop = True
             self.loop()
