@@ -37,16 +37,11 @@
         on_press:
             app.manager.current = 'settings'
             if self.state == 'normal': self.state = 'down'
-    ToggleButton:
-        group: 'mainmenu'
-        text: 'Tutorial'
-        on_press:
-            app.manager.current = 'tutorial'
-            if self.state == 'normal': self.state = 'down'
 
 <Tutorial>:
     size_hint: (1, 1)
     orientation: 'vertical'
+    padding: 20
     Label:
         id: 'greeting'
         text: "[size=24pt]Welcome to [b]NotePad[/b][/size]\n[i]multimodal music composition[/i]"
@@ -80,13 +75,14 @@
         Label:
             id: 'filler7'
             text: "eighth rest"
-    Button:
-        pos_hint: {'center_x': 0.5, 'center_y': 0.5}
-        size_hint: (.2, .2)
-        id: 'outro'
-        text: "Got it!"
-        on_press:
-            app.manager.current = 'surface'
+    AnchorLayout:
+        anchor_x: 'center'
+        Button:
+            size_hint: (0.2, 0.4)
+            id: 'outro'
+            text: "Let's go!"
+            on_press:
+                app.manager.current = 'surface'
 
 <NotePadSurface>:
     pos: (0, 0)
@@ -101,6 +97,18 @@
         Rectangle:
             pos: self.pos
             size: self.size
+
+<NotePadScreen>:
+    size_hint: (1, 1)
+    NotePadContainer:
+        id: container
+    Button:
+        size_hint: (None, None)
+        size: (50, 50)
+        pos_hint: {'right': 1}
+        text: "?"
+        on_press:
+            app.manager.current = 'tutorial'
 
 <NotePadContainer>:
     id: container

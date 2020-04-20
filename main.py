@@ -65,6 +65,9 @@ class MultistrokeAppSettings(MultistrokeSettingsContainer):
 class Tutorial(BoxLayout):
     pass
 
+class NotePadScreen(Screen):
+    pass
+
 
 class NotePadSurface(GestureSurface):
     def on_kv_post(self, base_widget):
@@ -561,17 +564,15 @@ class MultistrokeApp(App):
         self.recognizer = Recognizer([])
 
         # Setup the GestureSurface and bindings to our Recognizer
-        surface_screen = Screen(name='surface')
+        surface_screen = NotePadScreen(name='surface')
 
-        surface_container = NotePadContainer()
-        surface = surface_container.ids['surface']
+        surface_container = surface_screen.ids['container']
+        self.surface = surface_container.ids['surface']
 
-        surface.bind(on_gesture_discard=self.handle_gesture_discard)
-        surface.bind(on_gesture_complete=self.handle_gesture_complete)
-        surface.bind(on_gesture_cleanup=self.handle_gesture_cleanup)
-        self.surface = surface
+        self.surface.bind(on_gesture_discard=self.handle_gesture_discard)
+        self.surface.bind(on_gesture_complete=self.handle_gesture_complete)
+        self.surface.bind(on_gesture_cleanup=self.handle_gesture_cleanup)
 
-        surface_screen.add_widget(surface_container)
         self.manager.add_widget(surface_screen)
 
         # History is the list of gestures drawn on the surface
@@ -592,12 +593,12 @@ class MultistrokeApp(App):
         app_settings = MultistrokeAppSettings()
         ids = app_settings.ids
 
-        ids.max_strokes.bind(value=surface.setter('max_strokes'))
-        ids.temporal_win.bind(value=surface.setter('temporal_window'))
-        ids.timeout.bind(value=surface.setter('draw_timeout'))
-        ids.line_width.bind(value=surface.setter('line_width'))
-        ids.draw_bbox.bind(value=surface.setter('draw_bbox'))
-        ids.use_random_color.bind(value=surface.setter('use_random_color'))
+        ids.max_strokes.bind(value=self.surface.setter('max_strokes'))
+        ids.temporal_win.bind(value=self.surface.setter('temporal_window'))
+        ids.timeout.bind(value=self.surface.setter('draw_timeout'))
+        ids.line_width.bind(value=self.surface.setter('line_width'))
+        ids.draw_bbox.bind(value=self.surface.setter('draw_bbox'))
+        ids.use_random_color.bind(value=self.surface.setter('use_random_color'))
 
         settings_screen = Screen(name='settings')
         settings_screen.add_widget(app_settings)
