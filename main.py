@@ -28,8 +28,8 @@ durations = {'eighth': 1/8, 'quarter': 1/4, 'half': 1/2, 'whole': 1}
 
 # Kivy
 from kivy.app import App
-from kivy.uix.widget import Widget
 from kivy.uix.gridlayout import GridLayout
+from kivy.uix.boxlayout import BoxLayout
 from gesturesurface import GestureSurface
 from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
 from kivy.uix.label import Label
@@ -62,7 +62,7 @@ class MainMenu(GridLayout):
 class MultistrokeAppSettings(MultistrokeSettingsContainer):
     pass
 
-class Tutorial(Widget):
+class Tutorial(BoxLayout):
     pass
 
 
