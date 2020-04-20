@@ -28,6 +28,7 @@ durations = {'eighth': 1/8, 'quarter': 1/4, 'half': 1/2, 'whole': 1}
 
 # Kivy
 from kivy.app import App
+from kivy.uix.widget import Widget
 from kivy.uix.gridlayout import GridLayout
 from gesturesurface import GestureSurface
 from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
@@ -59,6 +60,9 @@ class MainMenu(GridLayout):
 
 
 class MultistrokeAppSettings(MultistrokeSettingsContainer):
+    pass
+
+class Tutorial(Widget):
     pass
 
 
@@ -524,7 +528,7 @@ class MultistrokeApp(App):
         self.notes = []
         self.seq = fluidsynth.Sequencer(time_scale=self.time_scale)
         self.fs = fluidsynth.Synth()
-        self.debug = False
+        self.debug = True
 
         sfid = None
         if sys.platform == "darwin":
@@ -589,6 +593,10 @@ class MultistrokeApp(App):
         settings_screen = Screen(name='settings')
         settings_screen.add_widget(app_settings)
         self.manager.add_widget(settings_screen)
+
+        tutorial_screen = Screen(name='tutorial')
+        tutorial_screen.add_widget(Tutorial())
+        self.manager.add_widget(tutorial_screen)
 
         # Wrap in a gridlayout so the main menu is always visible
         layout = GridLayout(cols=1)

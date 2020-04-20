@@ -37,6 +37,42 @@
         on_press:
             app.manager.current = 'settings'
             if self.state == 'normal': self.state = 'down'
+    ToggleButton:
+        group: 'mainmenu'
+        text: 'Tutorial'
+        on_press:
+            app.manager.current = 'tutorial'
+            if self.state == 'normal': self.state = 'down'
+
+<Tutorial>:
+    BoxLayout:
+        orientation: 'vertical'
+        Label:
+            id: 'greeting'
+            text: "Hello"
+        GridLayout:
+            rows: 4
+            cols: 2
+            Label:
+                id: 'filler0'
+            Label:
+                id: 'filler1'
+            Label:
+                id: 'filler2'
+            Label:
+                id: 'filler3'
+
+            Label:
+                id: 'filler4'
+            Label:
+                id: 'filler5'
+            Label:
+                id: 'filler6'
+            Label:
+                id: 'filler7'
+        Label:
+            id: 'outro'
+            text: "Goodbye"
 
 <NotePadSurface>:
     pos: (0, 0)
