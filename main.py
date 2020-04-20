@@ -484,7 +484,7 @@ class MultistrokeApp(App):
 
     def record_rhythm(self):
         audio, sr = self.record()
-        rhythm = list(transcribe.extract_rhythm(audio, sr, self.tempo, verbose=True))
+        rhythm = list(transcribe.extract_rhythm(audio, sr, self.tempo, verbose=self.debug))
         print('rhythm', rhythm)
         # HACK for prototype demo
         melody = []
@@ -496,7 +496,7 @@ class MultistrokeApp(App):
 
     def record_melody(self):
         audio, sr = self.record()
-        melody = transcribe.extract_melody(audio, sr, self.tempo, verbose=True)
+        melody = transcribe.extract_melody(audio, sr, self.tempo, verbose=self.debug)
         # For the demo, we're going to keep this in the treble clef: say, in a range of 62 to 79.
         # TODO: draw ledger lines
         def get_in_range(p):
