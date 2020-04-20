@@ -37,9 +37,9 @@ from kivy.graphics import Ellipse, Color, Line
 
 # Other external libraries
 import numpy as np
-import fluidsynth
-import pyaudio
-import wave
+# import fluidsynth
+# import pyaudio
+# import wave
 import pickle
 import copy
 
@@ -475,48 +475,50 @@ class MultistrokeApp(App):
         """Helper function. Plays one measure of beats and then records one measure of audio."""
 
         # Play four beeps to indicate tempo and key.
-        for i in range(4):
-            self.seq.note_on(time=self.beats_to_ticks(i + 1), absolute=False, channel=0, key=60, dest=self.synthID, velocity=80)
+        # for i in range(4):
+        #     self.seq.note_on(time=self.beats_to_ticks(i + 1), absolute=False, channel=0, key=60, dest=self.synthID, velocity=80)
 
-        sr = 44100
-        frame_size = 1024
-        # TODO: for now, locked to one measure of recording. figure out actual policy.
-        # (10 beats to include the calibration measure + latency allowance on each side)
-        length = 10 / (self.tempo / 60)  # seconds
-        print("recording")
-        stream = self.audio.open(format=pyaudio.paInt16, channels=1,
-                                 rate=sr, input=True,
-                                 frames_per_buffer=frame_size)
-        print('latencies', stream.get_input_latency(), stream.get_output_latency())
+        # sr = 44100
+        # frame_size = 1024
+        # # TODO: for now, locked to one measure of recording. figure out actual policy.
+        # # (10 beats to include the calibration measure + latency allowance on each side)
+        # length = 10 / (self.tempo / 60)  # seconds
+        # print("recording")
+        # stream = self.audio.open(format=pyaudio.paInt16, channels=1,
+        #                          rate=sr, input=True,
+        #                          frames_per_buffer=frame_size)
+        # print('latencies', stream.get_input_latency(), stream.get_output_latency())
         # for the moment we're assuming pyaudio's output latency is a good estimate of fluidsynth's...
-        latency = stream.get_input_latency() + stream.get_output_latency()
+        # latency = stream.get_input_latency() + stream.get_output_latency()
 
-        frames = []
-        for i in range(0, int(sr / frame_size * length)):
-            data = stream.read(frame_size)
-            frames.append(data)
+        # frames = []
+        # for i in range(0, int(sr / frame_size * length)):
+        #     data = stream.read(frame_size)
+        #     frames.append(data)
 
-        stream.stop_stream()
-        stream.close()
+        # stream.stop_stream()
+        # stream.close()
 
-        data = b''.join(frames)
-        data = np.frombuffer(data, dtype=np.int16).astype(np.int)
+        # data = b''.join(frames)
+        # data = np.frombuffer(data, dtype=np.int16).astype(np.int)
         # Throw out the first five beats plus latency, and the last beat.
-        start = (60 / self.tempo) * 5 + latency
-        end = (60 / self.tempo) * 9 + latency
-        data = data[int(start * sr):int(end * sr)]
+        # start = (60 / self.tempo) * 5 + latency
+        # end = (60 / self.tempo) * 9 + latency
+        # data = data[int(start * sr):int(end * sr)]
 
-        if save:
-            outfile = 'recorded.wav'
-            f = wave.open(outfile, 'wb')
-            f.setnchannels(1)
-            f.setsampwidth(2)
-            f.setframerate(sr)
-            f.writeframes(data.astype(np.int16).tobytes())
-            f.close()
-            print(f'saved recording to {outfile}.')
+        # if save:
+        #     outfile = 'recorded.wav'
+        #     f = wave.open(outfile, 'wb')
+        #     f.setnchannels(1)
+        #     f.setsampwidth(2)
+        #     f.setframerate(sr)
+        #     f.writeframes(data.astype(np.int16).tobytes())
+        #     f.close()
+        #     print(f'saved recording to {outfile}.')
 
-        return data, sr
+        # return data, sr
+        print('record called')
+        return np.zeros(0), 44100
 
     def calculate_x_start(self):
         if len(self.notes) == 0:
@@ -564,22 +566,22 @@ class MultistrokeApp(App):
         # TODO: __init__?
         self.time_scale = 1000
         self.tempo = 120  # bpm
-        self.audio = pyaudio.PyAudio()
+        # self.audio = pyaudio.PyAudio()
         self.notes = []
-        self.seq = fluidsynth.Sequencer(time_scale=self.time_scale)
-        self.fs = fluidsynth.Synth()
+        # self.seq = fluidsynth.Sequencer(time_scale=self.time_scale)
+        # self.fs = fluidsynth.Synth()
         self.debug = False
 
-        sfid = None
-        if sys.platform == "darwin":
-            self.fs.start('coreaudio')
-            sfid = self.fs.sfload("/Library/Audio/Sounds/Banks/FluidR3_GM.sf2")
-        else:
-            self.fs.start('alsa')
-            sfid = self.fs.sfload("/usr/share/sounds/sf2/FluidR3_GM.sf2")
+        # sfid = None
+        # if sys.platform == "darwin":
+        #     self.fs.start('coreaudio')
+        #     sfid = self.fs.sfload("/Library/Audio/Sounds/Banks/FluidR3_GM.sf2")
+        # else:
+        #     self.fs.start('alsa')
+        #     sfid = self.fs.sfload("/usr/share/sounds/sf2/FluidR3_GM.sf2")
 
-        self.fs.program_select(0, sfid, 0, 0)
-        self.synthID = self.seq.register_fluidsynth(self.fs)
+        # self.fs.program_select(0, sfid, 0, 0)
+        # self.synthID = self.seq.register_fluidsynth(self.fs)
 
         self.undo_history = []
         self.redo_history = []
