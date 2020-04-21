@@ -48,51 +48,63 @@
         Rectangle:
             pos: self.pos
             size: self.size
-        Color:
-            rgba: 0, 0, 0, 1
-        Line:
-            group: 'test'
     Label:
-        id: 'greeting'
+        id: greeting
         text: "[size=24pt]Welcome to [b]NotePad[/b][/size]\n[i]multimodal music composition[/i]"
         halign: 'center'
         markup: True
         color: 0, 0, 0, 1
     GridLayout:
+        id: notegrid
         rows: 4
         cols: 2
         Label:
-            id: 'filler0'
-            text: "whole note"
+            size_hint: (None, None)
+            size: self.texture_size
+            id: wholenote_label
+            text: "        = whole note"
+            halign: 'right'
+            color: 0, 0, 0, 1
+            canvas:
+                Color:
+                    rgba: 0, 0, 0, 1
+                PushMatrix
+                Translate:
+                    x: self.x
+                    y: self.center_y
+                Line:
+                    ellipse: (-5, -5, 10, 10)
+                Line:
+                    group: 'test'
+                    points: []
+                PopMatrix
+        Label:
+            id: wholerest_label
+            text: "= whole rest"
             color: 0, 0, 0, 1
         Label:
-            id: 'filler1'
-            text: "half note"
+            id: halfnote_label
+            text: "= half note"
             color: 0, 0, 0, 1
         Label:
-            id: 'filler2'
-            text: "quarter note"
+            id: halfrest_label
+            text: "= half rest"
             color: 0, 0, 0, 1
         Label:
-            id: 'filler3'
-            text: "eighth note"
-            color: 0, 0, 0, 1
-
-        Label:
-            id: 'filler4'
-            text: "whole rest"
+            id: quarternote_label
+            text: "= quarter note"
             color: 0, 0, 0, 1
         Label:
-            id: 'filler5'
-            text: "half rest"
+            id: quarterrest_label
+            text: "= quarter rest"
             color: 0, 0, 0, 1
         Label:
-            id: 'filler6'
-            text: "quarter rest"
+            id: eighthnote_label
+            text: "= eighth note"
             color: 0, 0, 0, 1
         Label:
-            id: 'filler7'
-            text: "eighth rest"
+            id: eighthrest_label
+            text: "= eighth rest"
             color: 0, 0, 0, 1
     AnchorLayout:
         anchor_x: 'center'

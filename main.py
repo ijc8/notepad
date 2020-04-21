@@ -696,8 +696,9 @@ class MultistrokeApp(App):
         self.manager.add_widget(settings_screen)
 
         tutorial = Tutorial()
-        points = sum(((p.x, p.y) for p in database.gdict['wholenote'][0]), ())
-        tutorial.canvas.before.get_group('test')[0].points = points
+        points = np.array([[p.x, p.y] for p in database.gdict['wholenote'][0]])
+        points -= points.mean(axis=0)
+        tutorial.ids['wholenote_label'].canvas.get_group('test')[0].points = list(points.flat)
         tutorial_screen = Screen(name='tutorial')
         tutorial_screen.add_widget(tutorial)
         self.manager.add_widget(tutorial_screen)
