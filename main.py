@@ -505,11 +505,11 @@ class MultistrokeApp(App):
         with open(filename, "rb") as data_file:
             record_indicator = pickle.load(data_file)
 
-        points = np.array(sum(record_indicator, [])).flat
+        points = (np.array(sum(record_indicator, [])) + [150, -500]).flat
 
         # TODO: put this on surface_screen.canvas, centered, preferably via kv.
         # we could, for example,  just adjust the opacity of existing lines here.
-        with self.surface.canvas:
+        with self.surface_screen.canvas.after:
             Color(rgba=RED)
             Line(
                 points=points,
@@ -537,7 +537,7 @@ class MultistrokeApp(App):
 
         finish_callback = self.seq.register_client(
             name="record_finish_callback",
-            callback=lambda *_: (record_thread.join(), callback(data, sr))
+            callback=lambda *_: (record_thread.join(), self.surface_screen.canvas.after.clear(), callback(data, sr))
         )
         self.seq.timer(time=self.beats_to_ticks(9), dest=finish_callback, absolute=False)
 
@@ -568,7 +568,7 @@ class MultistrokeApp(App):
         # Throw out the first five beats plus latency, and the last beat.
         start = (60 / self.tempo) * 5 + latency
         end = (60 / self.tempo) * 9 + latency
-        out[:] = data[int(start * sr):int(end * sr - 1)]
+        out[:] = data[int(start * sr):int(end * sr)]
 
         if save:
             outfile = 'recorded.wav'
