@@ -28,6 +28,7 @@ sys.path += ['.', '..']
 durations = {'eighth': 1/2, 'quarter': 1, 'half': 2, 'whole': 4}
 
 # Kivy
+from kivy.core.window import Window
 from kivy.app import App
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.boxlayout import BoxLayout
@@ -36,7 +37,7 @@ from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
 from kivy.uix.label import Label
 from kivy.uix.scatter import ScatterPlane
 from kivy.graphics import Ellipse, Color, Line
-from kivy.properties import StringProperty
+from kivy.properties import StringProperty, BooleanProperty
 
 # Other external libraries
 import numpy as np
@@ -222,6 +223,7 @@ class Note:
         self.x_pos = x_pos
 
 class MultistrokeApp(App):
+    debug = BooleanProperty(False)
 
     def goto_database_screen(self, *l):
         self.database.import_gdb()
@@ -635,7 +637,7 @@ class MultistrokeApp(App):
         self.notes = []
         self.seq = fluidsynth.Sequencer(time_scale=self.time_scale)
         self.fs = fluidsynth.Synth()
-        self.debug = True
+        self.debug = False
 
         sfid = None
         if sys.platform == "darwin":
@@ -720,9 +722,13 @@ class MultistrokeApp(App):
         layout = GridLayout(cols=1)
         layout.add_widget(NotePadMenu())
         layout.add_widget(self.manager)
+        layout.add_widget(MainMenu())
 
-        if (self.debug):
-            layout.add_widget(MainMenu())
+        def on_keyboard(instance, key, scancode, codepoint, modifiers):
+            if codepoint == 'd':
+                self.debug = not self.debug
+        Window.bind(on_keyboard=on_keyboard)
+
         return layout
 
 
