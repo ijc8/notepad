@@ -568,7 +568,7 @@ class MultistrokeApp(App):
         # Throw out the first five beats plus latency, and the last beat.
         start = (60 / self.tempo) * 5 + latency
         end = (60 / self.tempo) * 9 + latency
-        out[:] = data[int(start * sr):int(end * sr)]
+        out[:] = data[int(start * sr):int(end * sr - 1)]
 
         if save:
             outfile = 'recorded.wav'
