@@ -514,7 +514,7 @@ class MultistrokeApp(App):
             Line(
                 points=points,
                 width=self.surface.line_width,
-                group=filename,
+                group="indicators",
             )
 
     # TODO: we're edging into callback hell here, so maybe it's time to bust out async/await.
@@ -579,6 +579,8 @@ class MultistrokeApp(App):
             f.writeframes(data.astype(np.int16).tobytes())
             f.close()
             print(f'saved recording to {outfile}.')
+
+        self.surface.canvas.remove_group("indicators")
 
     def calculate_x_start(self):
         if len(self.notes) == 0:
