@@ -158,11 +158,21 @@
         text: 'Clear'
         on_press: app.clear()
     Button:
+        text: 'Play'
+        on_press: app.playback()
+    Button:
+        text: 'Stop'
+        on_press: app.stop()
+    Button:
+        text: 'Loop'
+        on_press: app.loop()
+    Button:
         text: 'Record Melody'
         on_press: app.record_melody()
     Button:
         text: 'Record Rhythm'
         on_press: app.record_rhythm()
+
 
 <MultistrokeAppSettings>:
     pos_hint: {'top': 1}

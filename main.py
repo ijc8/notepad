@@ -375,20 +375,26 @@ class MultistrokeApp(App):
             # For saving inks
             # with open("ink/loop", "wb") as data_file:
             #    pickle.dump(g.get_vectors(), data_file)
-
-            self.shouldLoop = True
             self.loop()
+
 
         # Stop sign is 'X' mark
         if recognized_name.endswith('stop'):
             # For saving inks
             # with open("ink/stop", "wb") as data_file:
             #    pickle.dump(g.get_vectors(), data_file)
-            self.shouldLoop = False
+            self.stop()
 
         self.surface.add_widget(g._result_label)
 
+    def stop(self):
+        self.shouldLoop = False
+
     def loop(self):
+        self.shouldLoop = True
+        self.loopHelper()
+
+    def loopHelper(self):
         if not self.shouldLoop:
             return
 
