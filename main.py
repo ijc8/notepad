@@ -24,7 +24,8 @@ described in the file multistroke.kv and managed from this file.
 import sys
 sys.path += ['.', '..']
 
-durations = {'eighth': 1/8, 'quarter': 1/4, 'half': 1/2, 'whole': 1}
+# These are in terms of number of beats.
+durations = {'eighth': 1/2, 'quarter': 1, 'half': 2, 'whole': 4}
 
 # Kivy
 from kivy.app import App
@@ -127,7 +128,6 @@ class NotePadSurface(GestureSurface):
     # also, perhaps we should get these directly from the gesture database.
     def get_note_gesture(self, value, pitch):
         gesture = []
-        value = value / 4
         for name, duration in durations.items():
             if duration == value:
                 filename = name + ('note' if pitch else 'rest')
@@ -155,7 +155,7 @@ class NotePadSurface(GestureSurface):
 
     def draw_note(self, staff_number, x_start, note, group_id):
         (_, value, pitch) = note
-        if value/4 not in durations.values():
+        if value not in durations.values():
             # HACK
             # possiblities: 1.5 -> dotted quarter
             #               2.5 -> ???
@@ -707,9 +707,9 @@ class MultistrokeApp(App):
             for thing in ('note', 'rest'):
                 entry = TutorialEntry(name=f'{duration} {thing}')
                 tutorial.ids.notegrid.add_widget(entry)
-                points = np.array(sum(self.surface.get_note_gesture(value * 4, int(thing == 'note')), []))
+                points = np.array(sum(self.surface.get_note_gesture(value, int(thing == 'note')), []))
                 # points = np.array([[p.x, p.y] for p in database.gdict[duration + thing][-1]])
-                points = util.align_note(points, (thing == 'note'), value * 4, 15)
+                points = util.align_note(points, (thing == 'note'), value, 15)
                 entry.ids.gesture.canvas.get_group('gesture')[0].points = list(points.flat)
 
         tutorial_screen = Screen(name='tutorial')
