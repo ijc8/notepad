@@ -79,11 +79,20 @@ class NotePadSurface(GestureSurface):
         self.lines = []
         self.staff_spacing = self.size[1] / 12
         self.line_spacing = self.size[1] / 96
+        self.total_staff_number = 2
+
+        heights = []
         with self.canvas.before:
             Color(rgba=BLACK)
-            for staff in range(2):
+            for staff in range(self.total_staff_number):
                 for line in range(5):
-                    self.lines.append(Line(points=self.get_points(staff, line)))
+                    points = self.get_points(staff, line)
+                    heights.append(points[1])
+                    self.lines.append(Line(points=points))
+
+        heights = np.array(heights)
+        self.height_max = np.max(heights)
+        self.height_min = np.min(heights)
 
     def get_height(self, staff_number, line_number):
         return self.size[1] - self.staff_spacing * (staff_number + 1) - self.line_spacing * (line_number - 2)
@@ -296,7 +305,7 @@ class MultistrokeApp(App):
         g = result._gesture_obj
 
         recognized_name = best['name']
-        if best['name'] is None:
+        if self.is_unrecognized_gesture(best['name'], g):
             # No match or ignored. Leave it onscreen in case it's for the user's benefit.
             self.set_color_rgba(g.id, RED)
             recognized_name = 'Not Recognized'
@@ -386,6 +395,33 @@ class MultistrokeApp(App):
             self.stop()
 
         self.surface.add_widget(g._result_label)
+
+    def is_unrecognized_gesture(self, name, gesture):
+        if name is None:
+            return True
+
+        if self.is_command_gesture(name):
+            return False
+
+        if self.too_far_away_from_staff(gesture):
+            return True
+
+        return False
+
+    def too_far_away_from_staff(self, gesture):
+        miny = gesture.bbox['miny']
+        maxy = gesture.bbox['maxy']
+
+        dist = np.inf
+        for y in [miny, maxy]:
+            for staff_y in [self.surface.height_min, self.surface.height_max]:
+                dist = min(dist, abs(y-staff_y))
+
+        return ((self.surface.size[1] / 22) < dist)
+
+    def is_command_gesture(self, name):
+        commands = ['play', 'loop', 'stop']
+        return name in commands
 
     def stop(self):
         self.shouldLoop = False
