@@ -60,3 +60,27 @@ class ResultWrapper:
             }
         else:
             self.results = {}
+
+
+def align_note(points, is_note, value, line_spacing):
+    "Normalize and translate notes so (0, 0) is where the note should be pinned on a staff."
+    mins, maxs = get_bounds(points)
+    width, height = maxs - mins
+    print('hey!', is_note, value, line_spacing)
+    if is_note:
+        # Normalize notes - size of notehead should equal line spacing.
+        normalization_factor = line_spacing / width
+        points = mins + (points - mins) * normalization_factor
+
+        # Translate - set (0, 0) to center of notehead.
+        points_without_outliers = points[reject_outliers(points[:, 1])]
+        center = points_without_outliers.mean(axis=0)
+        return points - center
+    elif value == 4:
+        # For whole rests, top should be aligned to y = 0.
+        return points - points.mean(axis=0) - line_spacing / 2
+    elif value == 2:
+        # For half rests, bottom should be aligned to y = 0.
+        return points - points.mean(axis=0) + height / 2
+    else:
+        return points - points.mean(axis=0)

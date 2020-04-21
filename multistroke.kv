@@ -38,10 +38,34 @@
             app.manager.current = 'settings'
             if self.state == 'normal': self.state = 'down'
 
+<TutorialEntry>:
+    size_hint_x: None
+    width: 300
+    orientation: 'horizontal'
+    Widget:
+        id: gesture
+        canvas:
+            Color:
+                rgba: 0, 0, 0, 1
+            PushMatrix
+            Translate:
+                xy: self.center
+            Line:
+                group: 'gesture'
+                points: []
+            PopMatrix
+    Label:
+        text: "="
+        font_size: '32pt'
+        color: 0, 0, 0, 1
+    Label:
+        text: root.name
+        font_size: '20pt'
+        color: 0, 0, 0, 1
+
 <Tutorial>:
     size_hint: (1, 1)
     orientation: 'vertical'
-    padding: 20
     canvas.before:
         Color:
             rgba: 0.94, 0.9, 0.8, 1
@@ -54,58 +78,15 @@
         halign: 'center'
         markup: True
         color: 0, 0, 0, 1
-    GridLayout:
-        id: notegrid
-        rows: 4
-        cols: 2
-        Label:
-            size_hint: (None, None)
-            size: self.texture_size
-            id: wholenote_label
-            text: "        = whole note"
-            halign: 'right'
-            color: 0, 0, 0, 1
-            canvas:
-                Color:
-                    rgba: 0, 0, 0, 1
-                PushMatrix
-                Translate:
-                    x: self.x
-                    y: self.center_y
-                Line:
-                    ellipse: (-5, -5, 10, 10)
-                Line:
-                    group: 'test'
-                    points: []
-                PopMatrix
-        Label:
-            id: wholerest_label
-            text: "= whole rest"
-            color: 0, 0, 0, 1
-        Label:
-            id: halfnote_label
-            text: "= half note"
-            color: 0, 0, 0, 1
-        Label:
-            id: halfrest_label
-            text: "= half rest"
-            color: 0, 0, 0, 1
-        Label:
-            id: quarternote_label
-            text: "= quarter note"
-            color: 0, 0, 0, 1
-        Label:
-            id: quarterrest_label
-            text: "= quarter rest"
-            color: 0, 0, 0, 1
-        Label:
-            id: eighthnote_label
-            text: "= eighth note"
-            color: 0, 0, 0, 1
-        Label:
-            id: eighthrest_label
-            text: "= eighth rest"
-            color: 0, 0, 0, 1
+    AnchorLayout:
+        anchor_x: 'center'
+        GridLayout:
+            size_hint: (None, 1)
+            id: notegrid
+            width: self.minimum_width
+            rows: 4
+            cols: 2
+            spacing: 50
     AnchorLayout:
         anchor_x: 'center'
         Button:

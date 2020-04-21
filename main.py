@@ -35,6 +35,7 @@ from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
 from kivy.uix.label import Label
 from kivy.uix.scatter import ScatterPlane
 from kivy.graphics import Ellipse, Color, Line
+from kivy.properties import StringProperty
 
 # Other external libraries
 import numpy as np
@@ -64,6 +65,9 @@ class MainMenu(GridLayout):
 
 class MultistrokeAppSettings(MultistrokeSettingsContainer):
     pass
+
+class TutorialEntry(BoxLayout):
+    name = StringProperty('default')
 
 class Tutorial(BoxLayout):
     pass
@@ -119,6 +123,8 @@ class NotePadSurface(GestureSurface):
             return False
         return super().on_touch_up(touch)
 
+    # TODO: move to util?
+    # also, perhaps we should get these directly from the gesture database.
     def get_note_gesture(self, value, pitch):
         gesture = []
         value = value / 4
@@ -138,39 +144,16 @@ class NotePadSurface(GestureSurface):
         idx = pitches.index(pitch) - 1
         return self.get_height(staff_number, idx / 2)
 
-    def draw_ink_based_on_melody(self, staff_number, x_start, melody, group_id):
+    def draw_melody(self, staff_number, x_start, melody, group_id):
         xs = []
         for note in melody:
             xs.append(x_start)
-            x_next_start = self.draw_ink_based_on_note(staff_number, x_start, note, group_id)
+            x_next_start = self.draw_note(staff_number, x_start, note, group_id)
             x_start = x_next_start
 
         return xs
 
-    def align_note(self, note, points):
-        "Normalize and translate notes so (0, 0) is where the note should be pinned on a staff."
-        (_, value, pitch) = note
-        mins, maxs = util.get_bounds(points)
-        width, height = maxs - mins
-        if pitch:
-            # Normalize notes - size of notehead should equal line spacing.
-            normalization_factor = self.line_spacing / width
-            points = mins + (points - mins) * normalization_factor
-
-            # Translate - set (0, 0) to center of notehead.
-            points_without_outliers = points[util.reject_outliers(points[:, 1])]
-            center = points_without_outliers.mean(axis=0)
-            return points - center
-        elif value == 4:
-            # For whole rests, top should be aligned to y = 0.
-            return points - points.mean(axis=0) - height / 2
-        elif value == 2:
-            # For half rests, bottom should be aligned to y = 0.
-            return points - points.mean(axis=0) + height / 2
-        else:
-            return points - points.mean(axis=0)
-
-    def draw_ink_based_on_note(self, staff_number, x_start, note, group_id):
+    def draw_note(self, staff_number, x_start, note, group_id):
         (_, value, pitch) = note
         if value/4 not in durations.values():
             # HACK
@@ -190,7 +173,7 @@ class NotePadSurface(GestureSurface):
             last_point = None
             for value in values:
                 next_point = (x_start + 25, self.get_y_from_pitch(staff_number, pitch) - 20)
-                x_start = self.draw_ink_based_on_note(staff_number, x_start, (None, value, pitch), group_id)
+                x_start = self.draw_note(staff_number, x_start, (None, value, pitch), group_id)
                 if last_point and pitch > 0:
                     with self.canvas:
                         Line(rgba=BLACK, points=last_point + next_point, width=self.line_width, group=group_id)
@@ -201,7 +184,7 @@ class NotePadSurface(GestureSurface):
         points = np.array(sum(gesture, []))
         bar_size = 12 * self.line_spacing
         note_padding = (bar_size * (value / 4.0)) / 2
-        points = self.align_note(note, points)
+        points = util.align_note(points, pitch, value, self.line_spacing)
         new_center_x = x_start + note_padding
         points += (new_center_x, self.get_y_from_pitch(staff_number, pitch))
 
@@ -613,7 +596,7 @@ class MultistrokeApp(App):
             melody.append((start, end - start, 64))
         print(melody)
         group_id = self.generate_group_id()
-        xs = self.surface.draw_ink_based_on_melody(0, self.calculate_x_start(), melody, group_id)
+        xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
         notes = [Note(pitch, value, x) for (_, value, pitch), x in zip(melody, xs)]
 
         self.notes += notes
@@ -632,7 +615,7 @@ class MultistrokeApp(App):
         melody = [(s, v, get_in_range(p) if p else 0) for s, v, p in melody]
         print(melody)
         group_id = self.generate_group_id()
-        xs = self.surface.draw_ink_based_on_melody(0, self.calculate_x_start(), melody, group_id)
+        xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
         notes = [Note(pitch, value, x) for (_, value, pitch), x in zip(melody, xs)]
         self.notes += notes
         self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
@@ -719,9 +702,16 @@ class MultistrokeApp(App):
         self.manager.add_widget(settings_screen)
 
         tutorial = Tutorial()
-        points = np.array([[p.x, p.y] for p in database.gdict['wholenote'][0]])
-        points -= points.mean(axis=0)
-        tutorial.ids['wholenote_label'].canvas.get_group('test')[0].points = list(points.flat)
+
+        for duration, value in list(durations.items())[::-1]:
+            for thing in ('note', 'rest'):
+                entry = TutorialEntry(name=f'{duration} {thing}')
+                tutorial.ids.notegrid.add_widget(entry)
+                points = np.array(sum(self.surface.get_note_gesture(value * 4, int(thing == 'note')), []))
+                # points = np.array([[p.x, p.y] for p in database.gdict[duration + thing][-1]])
+                points = util.align_note(points, (thing == 'note'), value * 4, 15)
+                entry.ids.gesture.canvas.get_group('gesture')[0].points = list(points.flat)
+
         tutorial_screen = Screen(name='tutorial')
         tutorial_screen.add_widget(tutorial)
         self.manager.add_widget(tutorial_screen)
