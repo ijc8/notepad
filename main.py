@@ -246,6 +246,12 @@ class MultistrokeApp(App):
                                 center=(g.bbox['minx'], g.bbox['miny']))
         self.surface.add_widget(g._result_label)
 
+    def set_color_rgba(self, gesture_id, rgba):
+        group = list(self.surface.canvas.get_group(gesture_id))
+        for i0, i1 in zip(group, group[2:]):
+            if isinstance(i0, Color) and isinstance(i1, Line):
+                i0.rgba = rgba
+
     def handle_gesture_complete(self, surface, g, *l):
         dollarResult = self.recognizer.recognize(
             util.convert_to_dollar(g.get_vectors()))
@@ -286,12 +292,9 @@ class MultistrokeApp(App):
         best = result.best
         g = result._gesture_obj
 
-        if best['name'] is None or best['name'] == 'trebleclef':
+        if best['name'] is None:
             # No match or ignored. Leave it onscreen in case it's for the user's benefit.
-            group = list(self.surface.canvas.get_group(g.id))
-            for i0, i1 in zip(group, group[2:]):
-                if isinstance(i0, Color) and isinstance(i1, Line):
-                    i0.rgba = (0, 0, 0, 1)
+            self.set_color_rgba(g.id, (0, 0, 0, 1))
             g._cleanup_time = None
             self.add_to_history_for_undo_redo([g], [])
             return
@@ -302,6 +305,11 @@ class MultistrokeApp(App):
         g._result_label = Label(text=text, markup=True, size_hint=(None, None),
                                 center=(g.bbox['minx'], g.bbox['miny']))
 
+        if best['name'] == 'trebleclef' or best['name'] == 'barline':
+            self.set_color_rgba(g.id, (0, 0, 0, 1))
+            g._cleanup_time = -1
+            self.add_to_history_for_undo_redo([g], [])
+
         if best['name'].endswith('note'):
             points = np.array(sum(g.get_vectors(), []))
 
@@ -310,7 +318,6 @@ class MultistrokeApp(App):
             #    pickle.dump(g.get_vectors(), data_file)
 
             # TODO: temp visualization
-
             center = points.mean(axis=0)
             points = points[util.reject_outliers(points[:, 1])]
             new_center = points.mean(axis=0)
@@ -332,10 +339,7 @@ class MultistrokeApp(App):
             self.notes.append(note)
             self.notes.sort(key=lambda note: note.x_pos)
             # Hacky way to change note color to black once it's registered.
-            group = list(self.surface.canvas.get_group(g.id))
-            for i0, i1 in zip(group, group[2:]):
-                if isinstance(i0, Color) and isinstance(i1, Line):
-                    i0.rgba = (0, 0, 0, 1)
+            self.set_color_rgba(g.id, (0, 0, 0, 1))
             g._cleanup_time = -1
             self.add_to_history_for_undo_redo([g], [note])
 
@@ -351,10 +355,7 @@ class MultistrokeApp(App):
             self.notes.append(note)
             self.notes.sort(key=lambda note: note.x_pos)
             # Hacky way to change rest color to black once it's registered.
-            group = list(self.surface.canvas.get_group(g.id))
-            for i0, i1 in zip(group, group[2:]):
-                if isinstance(i0, Color) and isinstance(i1, Line):
-                    i0.rgba = (0, 0, 0, 1)
+            self.set_color_rgba(g.id, (0, 0, 0, 1))
             g._cleanup_time = -1
             self.add_to_history_for_undo_redo([g], [note])
 
