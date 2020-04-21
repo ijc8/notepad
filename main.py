@@ -257,10 +257,12 @@ class MultistrokeApp(App):
 
     def add_to_history_for_undo_redo(self, gestures, notes):
         self.redo_history = []
-        vec = []
-        for gesture, note in zip(gestures, notes):
-            vec.append((gesture.id, gesture.get_vectors(), note))
-        self.undo_history.append(vec)
+        gesture_vec = []
+        for gesture in gestures:
+            gesture_vec.append(
+                (gesture.id, gesture.get_vectors())
+            )
+        self.undo_history.append((gesture_vec, notes))
 
     def handle_recognize_complete(self, result, *l):
         self.history.add_recognizer_result(result)
@@ -279,7 +281,7 @@ class MultistrokeApp(App):
                 if isinstance(i0, Color) and isinstance(i1, Line):
                     i0.rgba = (0, 0, 0, 1)
             g._cleanup_time = None
-            self.add_to_history_for_undo_redo([g], [None])
+            self.add_to_history_for_undo_redo([g], [])
             return
 
         text = '[b]%s[/b]' % (best['name'])
@@ -408,39 +410,43 @@ class MultistrokeApp(App):
     def undo(self):
         if len(self.undo_history) == 0:
             return
-        vec = self.undo_history[-1]
+        history_val = self.undo_history[-1]
         self.undo_history.pop()
 
-        vec_copy = []
-        for val in vec:
-            group_id, vectors, note = val
+        gesture_vec, notes = history_val
+
+        for val in gesture_vec:
+            group_id, vectors = val
             self.surface.canvas.remove_group(group_id)
-            note_copy = None
+
+        for note in notes:
             if note:
-                note_copy = copy.deepcopy(note)
                 self.notes.remove(note)
-            vec_copy.append((group_id, vectors, note_copy))
 
         self.notes.sort(key=lambda note: note.x_pos)
-        self.redo_history.append(vec_copy)
+        self.redo_history.append(history_val)
 
     def redo(self):
         if len(self.redo_history) == 0:
             return
 
-        vec = self.redo_history[-1]
+        history_val = self.redo_history[-1]
         self.redo_history.pop()
 
-        for val in vec:
-            group_id, vectors, note = val
-            vectors = np.array(vectors)
+        gesture_vec, notes = history_val
+
+        for val in gesture_vec:
+            group_id, vectors = val
+            np_vectors = np.array(vectors)
             with self.surface.canvas:
                 Color(0, 0, 0, 1)
-                Line(points=vectors.flat, group=group_id, width=2)
-            self.notes.append(note)
+                Line(points=np_vectors.flat, group=group_id, width=2)
 
+        for note in notes:
+            self.notes.append(note)
         self.notes.sort(key=lambda note: note.x_pos)
-        self.undo_history.append(vec)
+
+        self.undo_history.append(history_val)
 
 
     def record(self, save=False):
