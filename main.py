@@ -310,6 +310,13 @@ class MultistrokeApp(App):
             self.set_color_rgba(g.id, RED)
             recognized_name = 'Not Recognized'
             g._cleanup_time = -1
+
+            # For saving inks
+            # self.record_counter += 1
+            # filename='ink/record_{}'.format(self.record_counter)
+            # with open(filename, "wb") as data_file:
+            #    pickle.dump(g.get_vectors(), data_file)
+
             self.add_to_history_for_undo_redo([g], [])
 
         text = '[b]%s[/b]' % (recognized_name)
@@ -507,13 +514,26 @@ class MultistrokeApp(App):
 
         self.undo_history.append(history_val)
 
-    def update_record_affordance(self, data):
-        print("data", data)
-        return
+    def update_record_affordance(self, idx):
+        filename = 'ink/record_{}'.format(idx)
+        record_indicator = None
+        with open(filename, "rb") as data_file:
+            record_indicator = pickle.load(data_file)
+
+        with self.surface.canvas:
+            Color(rgba=RED)
+            Line(
+                points=np.array(sum(record_indicator, [])).flat,
+                width=self.surface.line_width,
+                group=filename,
+            )
 
     def record(self, save=False):
-        """Helper function. Plays one measure of beats and then records one measure of audio."""
+        self.play_indicators()
+        # TODO: Need to schedule record_helper in the future after the indicators are done.
+        return self.record_helper(save)
 
+    def play_indicators(self):
         def record_ui_callback_helper(time, event, seq, data):
             self.update_record_affordance(data)
             return
@@ -529,6 +549,8 @@ class MultistrokeApp(App):
             self.seq.timer(time=time, dest=callbackID, absolute=False)
             self.seq.note_on(time=time, absolute=False, channel=0, key=60, dest=self.synthID, velocity=80)
 
+    def record_helper(self, save):
+        """Helper function. Plays one measure of beats and then records one measure of audio."""
         sr = 44100
         frame_size = 1024
         # TODO: for now, locked to one measure of recording. figure out actual policy.
@@ -646,6 +668,7 @@ class MultistrokeApp(App):
         self.undo_history = []
         self.redo_history = []
         self.group_id_counter = 0
+        self.record_counter = 0
 
         # Setting NoTransition breaks the "history" screen! Possibly related
         # to some inexplicable rendering bugs on my particular system
