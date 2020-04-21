@@ -54,6 +54,9 @@ import util
 import math
 import transcribe
 
+WHITE = (1, 1, 1, 1)
+BLACK = (0, 0, 0, 1)
+RED = (1, 0, 0, 1)
 
 class MainMenu(GridLayout):
     pass
@@ -77,7 +80,7 @@ class NotePadSurface(GestureSurface):
         self.staff_spacing = self.size[1] / 12
         self.line_spacing = self.size[1] / 96
         with self.canvas.before:
-            Color(0, 0, 0, 1)
+            Color(rgba=BLACK)
             for staff in range(2):
                 for line in range(5):
                     self.lines.append(Line(points=self.get_points(staff, line)))
@@ -181,7 +184,7 @@ class NotePadSurface(GestureSurface):
                 x_start = self.draw_ink_based_on_note(staff_number, x_start, (None, value, pitch), group_id)
                 if last_point and pitch > 0:
                     with self.canvas:
-                        Line(points=last_point + next_point, width=self.line_width, group=group_id)
+                        Line(rgba=BLACK, points=last_point + next_point, width=self.line_width, group=group_id)
                 last_point = next_point
             return x_start
 
@@ -194,7 +197,7 @@ class NotePadSurface(GestureSurface):
         points += (new_center_x, self.get_y_from_pitch(staff_number, pitch))
 
         with self.canvas:
-            Color(1.0, 0.0, 0.0, mode='rgb')
+            Color(rgba=BLACK)
             Line(points=points.flat, group=group_id, width=self.line_width)
 
         return new_center_x + note_padding
@@ -294,7 +297,7 @@ class MultistrokeApp(App):
 
         if best['name'] is None:
             # No match or ignored. Leave it onscreen in case it's for the user's benefit.
-            self.set_color_rgba(g.id, (0, 0, 0, 1))
+            self.set_color_rgba(g.id, RED)
             g._cleanup_time = None
             self.add_to_history_for_undo_redo([g], [])
             return
@@ -306,7 +309,7 @@ class MultistrokeApp(App):
                                 center=(g.bbox['minx'], g.bbox['miny']))
 
         if best['name'] == 'trebleclef' or best['name'] == 'barline':
-            self.set_color_rgba(g.id, (0, 0, 0, 1))
+            self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
             self.add_to_history_for_undo_redo([g], [])
 
@@ -324,9 +327,9 @@ class MultistrokeApp(App):
             radius = 5
             if self.debug:
                 with self.surface.canvas:
-                    Color(1, 1, 1, 1)
+                    Color(rgba=WHITE)
                     Ellipse(pos=center - radius, size=(radius * 2, radius * 2))
-                    Color(0, 0, 0, 1)
+                    Color(rgba=BLACK)
                     Ellipse(pos=new_center - radius, size=(radius * 2, radius * 2))
             # end tmp
 
@@ -339,7 +342,7 @@ class MultistrokeApp(App):
             self.notes.append(note)
             self.notes.sort(key=lambda note: note.x_pos)
             # Hacky way to change note color to black once it's registered.
-            self.set_color_rgba(g.id, (0, 0, 0, 1))
+            self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
             self.add_to_history_for_undo_redo([g], [note])
 
@@ -355,7 +358,7 @@ class MultistrokeApp(App):
             self.notes.append(note)
             self.notes.sort(key=lambda note: note.x_pos)
             # Hacky way to change rest color to black once it's registered.
-            self.set_color_rgba(g.id, (0, 0, 0, 1))
+            self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
             self.add_to_history_for_undo_redo([g], [note])
 
@@ -452,7 +455,7 @@ class MultistrokeApp(App):
             group_id, vectors = val
             np_vectors = np.array(vectors)
             with self.surface.canvas:
-                Color(0, 0, 0, 1)
+                Color(rgba=BLACK)
                 Line(points=np_vectors.flat, group=group_id, width=2)
 
         for note in notes:
