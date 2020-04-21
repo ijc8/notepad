@@ -42,39 +42,54 @@
     size_hint: (1, 1)
     orientation: 'vertical'
     padding: 20
+    canvas.before:
+        Color:
+            rgba: 0.94, 0.9, 0.8, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
     Label:
         id: 'greeting'
         text: "[size=24pt]Welcome to [b]NotePad[/b][/size]\n[i]multimodal music composition[/i]"
         halign: 'center'
         markup: True
+        color: 0, 0, 0, 1
     GridLayout:
         rows: 4
         cols: 2
         Label:
             id: 'filler0'
             text: "whole note"
+            color: 0, 0, 0, 1
         Label:
             id: 'filler1'
             text: "half note"
+            color: 0, 0, 0, 1
         Label:
             id: 'filler2'
             text: "quarter note"
+            color: 0, 0, 0, 1
         Label:
             id: 'filler3'
             text: "eighth note"
+            color: 0, 0, 0, 1
 
         Label:
             id: 'filler4'
             text: "whole rest"
+            color: 0, 0, 0, 1
         Label:
             id: 'filler5'
             text: "half rest"
+            color: 0, 0, 0, 1
         Label:
             id: 'filler6'
             text: "quarter rest"
+            color: 0, 0, 0, 1
         Label:
             id: 'filler7'
             text: "eighth rest"
+            color: 0, 0, 0, 1
     AnchorLayout:
         anchor_x: 'center'
         Button:
@@ -82,6 +97,7 @@
             id: 'outro'
             text: "Let's go!"
             on_press:
+                app.manager.transition.direction = 'up'
                 app.manager.current = 'surface'
 
 <NotePadSurface>:
@@ -108,6 +124,7 @@
         pos_hint: {'right': 1}
         text: "?"
         on_press:
+            app.manager.transition.direction = 'down'
             app.manager.current = 'tutorial'
 
 <NotePadContainer>:
