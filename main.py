@@ -295,25 +295,26 @@ class MultistrokeApp(App):
         best = result.best
         g = result._gesture_obj
 
+        recognized_name = best['name']
         if best['name'] is None:
             # No match or ignored. Leave it onscreen in case it's for the user's benefit.
             self.set_color_rgba(g.id, RED)
-            g._cleanup_time = None
+            recognized_name = 'Not Recognized'
+            g._cleanup_time = -1
             self.add_to_history_for_undo_redo([g], [])
-            return
 
-        text = '[b]%s[/b]' % (best['name'])
+        text = '[b]%s[/b]' % (recognized_name)
 
         text = f'[color=#000000]{text}[/color]'
         g._result_label = Label(text=text, markup=True, size_hint=(None, None),
                                 center=(g.bbox['minx'], g.bbox['miny']))
 
-        if best['name'] == 'trebleclef' or best['name'] == 'barline':
+        if recognized_name == 'trebleclef' or recognized_name == 'barline':
             self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
             self.add_to_history_for_undo_redo([g], [])
 
-        if best['name'].endswith('note'):
+        if recognized_name.endswith('note'):
             points = np.array(sum(g.get_vectors(), []))
 
             # For saving inks
@@ -337,7 +338,7 @@ class MultistrokeApp(App):
             x_pos = points[:, 0].mean()
             pitches = [64, 65, 67, 69, 71, 72, 74, 76, 77][::-1]
             pitch = pitches[min(range(0, 9), key=lambda i: np.abs(self.surface.get_height(0, i / 2) - note_height))]
-            note = Note(pitch, durations[best['name'][:-4]], x_pos)
+            note = Note(pitch, durations[recognized_name[:-4]], x_pos)
 
             self.notes.append(note)
             self.notes.sort(key=lambda note: note.x_pos)
@@ -346,7 +347,7 @@ class MultistrokeApp(App):
             g._cleanup_time = -1
             self.add_to_history_for_undo_redo([g], [note])
 
-        if best['name'].endswith('rest'):
+        if recognized_name.endswith('rest'):
             points = np.array(sum(g.get_vectors(), []))
 
             # For saving inks
@@ -354,7 +355,7 @@ class MultistrokeApp(App):
             #    pickle.dump(g.get_vectors(), data_file)
 
             x_pos = points[:, 0].mean()
-            note = Note(0, durations[best['name'][:-4]], x_pos)
+            note = Note(0, durations[recognized_name[:-4]], x_pos)
             self.notes.append(note)
             self.notes.sort(key=lambda note: note.x_pos)
             # Hacky way to change rest color to black once it's registered.
@@ -363,14 +364,14 @@ class MultistrokeApp(App):
             self.add_to_history_for_undo_redo([g], [note])
 
         # Check is same as 'check' mark.
-        if best['name'].endswith('play'):
+        if recognized_name.endswith('play'):
             # For saving inks
             # with open("ink/play", "wb") as data_file:
             #    pickle.dump(g.get_vectors(), data_file)
             self.playback()
 
         # Loop sign is half circle sign.
-        if best['name'].endswith('loop'):
+        if recognized_name.endswith('loop'):
             # For saving inks
             # with open("ink/loop", "wb") as data_file:
             #    pickle.dump(g.get_vectors(), data_file)
@@ -379,7 +380,7 @@ class MultistrokeApp(App):
             self.loop()
 
         # Stop sign is 'X' mark
-        if best['name'].endswith('stop'):
+        if recognized_name.endswith('stop'):
             # For saving inks
             # with open("ink/stop", "wb") as data_file:
             #    pickle.dump(g.get_vectors(), data_file)
