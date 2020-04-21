@@ -126,12 +126,13 @@ class NotePadSurface(GestureSurface):
         idx = pitches.index(pitch) - 1
         return self.get_height(staff_number, idx / 2)
 
-    def draw_ink_based_on_melody(self, staff_number, x_start, melody):
+    def draw_ink_based_on_melody(self, staff_number, x_start, melody, group_id):
         xs = []
         for note in melody:
             xs.append(x_start)
-            x_next_start = self.draw_ink_based_on_note(staff_number, x_start, note)
+            x_next_start = self.draw_ink_based_on_note(staff_number, x_start, note, group_id)
             x_start = x_next_start
+
         return xs
 
     def align_note(self, note, points):
@@ -157,7 +158,7 @@ class NotePadSurface(GestureSurface):
         else:
             return points - points.mean(axis=0)
 
-    def draw_ink_based_on_note(self, staff_number, x_start, note):
+    def draw_ink_based_on_note(self, staff_number, x_start, note, group_id):
         (_, value, pitch) = note
         if value/4 not in durations.values():
             # HACK
@@ -177,10 +178,10 @@ class NotePadSurface(GestureSurface):
             last_point = None
             for value in values:
                 next_point = (x_start + 25, self.get_y_from_pitch(staff_number, pitch) - 20)
-                x_start = self.draw_ink_based_on_note(staff_number, x_start, (None, value, pitch))
+                x_start = self.draw_ink_based_on_note(staff_number, x_start, (None, value, pitch), group_id)
                 if last_point and pitch > 0:
                     with self.canvas:
-                        Line(points=last_point + next_point, width=self.line_width)
+                        Line(points=last_point + next_point, width=self.line_width, group=group_id)
                 last_point = next_point
             return x_start
 
@@ -194,7 +195,7 @@ class NotePadSurface(GestureSurface):
 
         with self.canvas:
             Color(1.0, 0.0, 0.0, mode='rgb')
-            Line(points=points.flat, group='gesture', width=self.line_width)
+            Line(points=points.flat, group=group_id, width=self.line_width)
 
         return new_center_x + note_padding
 
@@ -254,6 +255,17 @@ class MultistrokeApp(App):
         result._gesture_obj = g
 
         self.handle_recognize_complete(result)
+
+    def add_to_history_for_undo_redo_with_group_id(self, group_id, notes):
+        self.redo_history = []
+        group = list(self.surface.canvas.get_group(group_id))
+        gesture_vec = []
+        for line in group:
+            if isinstance(line, Line):
+                gesture_vec.append(
+                    (group_id, line.points)
+                )
+        self.undo_history.append((gesture_vec, notes))
 
     def add_to_history_for_undo_redo(self, gestures, notes):
         self.redo_history = []
@@ -504,6 +516,10 @@ class MultistrokeApp(App):
         note_padding = (bar_size * self.notes[-1].duration) / 2
         return self.notes[-1].x_pos + note_padding
 
+    def generate_group_id(self):
+        self.group_id_counter += 1
+        return 'transcription group {}'.format(self.group_id_counter)
+
     def record_rhythm(self):
         audio, sr = self.record()
         rhythm = list(transcribe.extract_rhythm(audio, sr, self.tempo, verbose=self.debug))
@@ -513,8 +529,12 @@ class MultistrokeApp(App):
         for (start, end) in zip(rhythm, rhythm[1:] + [4]):
             melody.append((start, end - start, 64))
         print(melody)
-        xs = self.surface.draw_ink_based_on_melody(0, self.calculate_x_start(), melody)
-        self.notes += [Note(pitch, value, x) for (_, value, pitch), x in zip(melody, xs)]
+        group_id = self.generate_group_id()
+        xs = self.surface.draw_ink_based_on_melody(0, self.calculate_x_start(), melody, group_id)
+        notes = [Note(pitch, value, x) for (_, value, pitch), x in zip(melody, xs)]
+
+        self.notes += notes
+        self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
 
     def record_melody(self):
         audio, sr = self.record()
@@ -528,8 +548,11 @@ class MultistrokeApp(App):
             return p + 62
         melody = [(s, v, get_in_range(p) if p else 0) for s, v, p in melody]
         print(melody)
-        xs = self.surface.draw_ink_based_on_melody(0, self.calculate_x_start(), melody)
-        self.notes += [Note(pitch, value, x) for (_, value, pitch), x in zip(melody, xs)]
+        group_id = self.generate_group_id()
+        xs = self.surface.draw_ink_based_on_melody(0, self.calculate_x_start(), melody, group_id)
+        notes = [Note(pitch, value, x) for (_, value, pitch), x in zip(melody, xs)]
+        self.notes += notes
+        self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
         print('melody', melody)
 
     def beats_to_ticks(self, beats):
@@ -561,6 +584,7 @@ class MultistrokeApp(App):
 
         self.undo_history = []
         self.redo_history = []
+        self.group_id_counter = 0
 
         # Setting NoTransition breaks the "history" screen! Possibly related
         # to some inexplicable rendering bugs on my particular system
