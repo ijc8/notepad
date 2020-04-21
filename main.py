@@ -610,8 +610,11 @@ class MultistrokeApp(App):
         settings_screen.add_widget(app_settings)
         self.manager.add_widget(settings_screen)
 
+        tutorial = Tutorial()
+        points = sum(((p.x, p.y) for p in database.gdict['wholenote'][0]), ())
+        tutorial.canvas.before.get_group('test')[0].points = points
         tutorial_screen = Screen(name='tutorial')
-        tutorial_screen.add_widget(Tutorial())
+        tutorial_screen.add_widget(tutorial)
         self.manager.add_widget(tutorial_screen)
 
         # Wrap in a gridlayout so the main menu is always visible
