@@ -22,7 +22,7 @@ described in the file multistroke.kv and managed from this file.
 '''
 # Built-in modules
 import sys
-sys.path += ['.', '..']
+import threading
 
 # These are in terms of number of beats.
 durations = {'eighth': 1/2, 'quarter': 1, 'half': 2, 'whole': 4}
@@ -505,38 +505,44 @@ class MultistrokeApp(App):
         with open(filename, "rb") as data_file:
             record_indicator = pickle.load(data_file)
 
+        points = np.array(sum(record_indicator, [])).flat
+
+        # TODO: put this on surface_screen.canvas, centered, preferably via kv.
+        # we could, for example,  just adjust the opacity of existing lines here.
         with self.surface.canvas:
             Color(rgba=RED)
             Line(
-                points=np.array(sum(record_indicator, [])).flat,
+                points=points,
                 width=self.surface.line_width,
                 group=filename,
             )
 
-    def record(self, save=False):
-        self.play_indicators()
-        # TODO: Need to schedule record_helper in the future after the indicators are done.
-        return self.record_helper(save)
-
-    def play_indicators(self):
-        def record_ui_callback_helper(time, event, seq, data):
-            self.update_record_affordance(data)
-            return
+    # TODO: we're edging into callback hell here, so maybe it's time to bust out async/await.
+    def record(self, callback, save=False):
+        sr = 44100
+        data = np.zeros(int(60 / self.tempo * sr * 4), dtype=np.int)
+        record_thread = threading.Thread(target=self.record_helper, args=(sr, data, save))
+        record_thread.start()
 
         # Play four beeps to indicate tempo and key.
         for i in range(4):
-            time=self.beats_to_ticks(i + 1)
-            callbackID = self.seq.register_client(
-                name="record_ui_callback_helper",
-                callback=record_ui_callback_helper,
+            time = self.beats_to_ticks(i + 1)
+            update_callback = self.seq.register_client(
+                name="record_update_callback",
+                callback=lambda a, b, c, idx: self.update_record_affordance(idx),
                 data=(i + 1),
             )
-            self.seq.timer(time=time, dest=callbackID, absolute=False)
+            self.seq.timer(time=time, dest=update_callback, absolute=False)
             self.seq.note_on(time=time, absolute=False, channel=0, key=60, dest=self.synthID, velocity=80)
 
-    def record_helper(self, save):
+        finish_callback = self.seq.register_client(
+            name="record_finish_callback",
+            callback=lambda *_: (record_thread.join(), callback(data, sr))
+        )
+        self.seq.timer(time=self.beats_to_ticks(9), dest=finish_callback, absolute=False)
+
+    def record_helper(self, sr, out, save):
         """Helper function. Plays one measure of beats and then records one measure of audio."""
-        sr = 44100
         frame_size = 1024
         # TODO: for now, locked to one measure of recording. figure out actual policy.
         # (10 beats to include the calibration measure + latency allowance on each side)
@@ -562,7 +568,7 @@ class MultistrokeApp(App):
         # Throw out the first five beats plus latency, and the last beat.
         start = (60 / self.tempo) * 5 + latency
         end = (60 / self.tempo) * 9 + latency
-        data = data[int(start * sr):int(end * sr)]
+        out[:] = data[int(start * sr):int(end * sr)]
 
         if save:
             outfile = 'recorded.wav'
@@ -573,8 +579,6 @@ class MultistrokeApp(App):
             f.writeframes(data.astype(np.int16).tobytes())
             f.close()
             print(f'saved recording to {outfile}.')
-
-        return data, sr
 
     def calculate_x_start(self):
         if len(self.notes) == 0:
@@ -589,7 +593,12 @@ class MultistrokeApp(App):
         return 'transcription group {}'.format(self.group_id_counter)
 
     def record_rhythm(self):
-        audio, sr = self.record()
+        self.record(self.transcribe_rhythm)
+
+    def record_melody(self):
+        self.record(self.transcribe_melody)
+
+    def transcribe_rhythm(self, audio, sr):
         rhythm = list(transcribe.extract_rhythm(audio, sr, self.tempo, verbose=self.debug))
         print('rhythm', rhythm)
         # HACK for prototype demo
@@ -604,8 +613,7 @@ class MultistrokeApp(App):
         self.notes += notes
         self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
 
-    def record_melody(self):
-        audio, sr = self.record()
+    def transcribe_melody(self, audio, sr):
         melody = transcribe.extract_melody(audio, sr, self.tempo, verbose=self.debug)
         # For the demo, we're going to keep this in the treble clef: say, in a range of 62 to 79.
         # TODO: draw ledger lines
@@ -663,16 +671,16 @@ class MultistrokeApp(App):
         self.recognizer = Recognizer([])
 
         # Setup the GestureSurface and bindings to our Recognizer
-        surface_screen = NotePadScreen(name='surface')
+        self.surface_screen = NotePadScreen(name='surface')
 
-        surface_container = surface_screen.ids['container']
+        surface_container = self.surface_screen.ids['container']
         self.surface = surface_container.ids['surface']
 
         self.surface.bind(on_gesture_discard=self.handle_gesture_discard)
         self.surface.bind(on_gesture_complete=self.handle_gesture_complete)
         self.surface.bind(on_gesture_cleanup=self.handle_gesture_cleanup)
 
-        self.manager.add_widget(surface_screen)
+        self.manager.add_widget(self.surface_screen)
 
         # History is the list of gestures drawn on the surface
         history = GestureHistoryManager()
