@@ -507,13 +507,27 @@ class MultistrokeApp(App):
 
         self.undo_history.append(history_val)
 
+    def update_record_affordance(self, data):
+        print("data", data)
+        return
 
     def record(self, save=False):
         """Helper function. Plays one measure of beats and then records one measure of audio."""
 
+        def record_ui_callback_helper(time, event, seq, data):
+            self.update_record_affordance(data)
+            return
+
         # Play four beeps to indicate tempo and key.
         for i in range(4):
-            self.seq.note_on(time=self.beats_to_ticks(i + 1), absolute=False, channel=0, key=60, dest=self.synthID, velocity=80)
+            time=self.beats_to_ticks(i + 1)
+            callbackID = self.seq.register_client(
+                name="record_ui_callback_helper",
+                callback=record_ui_callback_helper,
+                data=(i + 1),
+            )
+            self.seq.timer(time=time, dest=callbackID, absolute=False)
+            self.seq.note_on(time=time, absolute=False, channel=0, key=60, dest=self.synthID, velocity=80)
 
         sr = 44100
         frame_size = 1024
