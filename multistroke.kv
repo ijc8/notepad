@@ -115,6 +115,51 @@
             pos: self.pos
             size: self.size
 
+# TODO: use icons
+<ToolBar@BoxLayout>:
+    orientation: 'vertical'
+    size_hint: (None, 1/3)
+    width: self.height / 3
+    Button:
+        text: 'Ink'
+        on_press: print('ink')
+    Button:
+        text: 'Erase'
+        on_press: print('erase')
+    Button:
+        text: 'Move'
+        on_press: print('move')
+
+# TODO: use icons, reduce clutter
+<ControlBar@BoxLayout>:
+    orientation: 'vertical'
+    size_hint: (None, 3/4)
+    width: self.height / 8
+    Button:
+        text: 'Play'
+        on_press: app.playback()
+    Button:
+        text: 'Stop'
+        on_press: app.stop()
+    Button:
+        text: 'Loop'
+        on_press: app.loop()
+    Button:
+        text: 'Record Melody'
+        on_press: app.record_melody()
+    Button:
+        text: 'Record Rhythm'
+        on_press: app.record_rhythm()
+    Button:
+        text: 'Undo'
+        on_press: app.undo()
+    Button:
+        text: 'Redo'
+        on_press: app.redo()
+    Button:
+        text: 'Clear'
+        on_press: app.clear()
+
 <NotePadScreen>:
     size_hint: (1, 1)
     canvas.after:
@@ -163,6 +208,10 @@
         on_press:
             app.manager.transition.direction = 'down'
             app.manager.current = 'tutorial'
+    ControlBar:
+        pos_hint: {'left': 0, 'center_y': 0.5}
+    ToolBar:
+        pos_hint: {'right': 1, 'center_y': 0.5}
 
 <NotePadContainer>:
     id: container
@@ -173,37 +222,6 @@
         size: surface.size
         NotePadSurface:
             id: surface
-
-<NotePadMenu>:
-    rows: 1
-    size_hint: (1, None)
-    height: 50
-    spacing: 5
-    padding: 5
-    Button:
-        text: 'Undo'
-        on_press: app.undo()
-    Button:
-        text: 'Redo'
-        on_press: app.redo()
-    Button:
-        text: 'Clear'
-        on_press: app.clear()
-    Button:
-        text: 'Play'
-        on_press: app.playback()
-    Button:
-        text: 'Stop'
-        on_press: app.stop()
-    Button:
-        text: 'Loop'
-        on_press: app.loop()
-    Button:
-        text: 'Record Melody'
-        on_press: app.record_melody()
-    Button:
-        text: 'Record Rhythm'
-        on_press: app.record_rhythm()
 
 
 <MultistrokeAppSettings>:

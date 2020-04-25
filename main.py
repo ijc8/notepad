@@ -212,9 +212,6 @@ class NotePadContainer(ScatterPlane):
             return False
         super().on_touch_move(touch)
 
-class NotePadMenu(GridLayout):
-    pass
-
 
 class Note:
     def __init__(self, pitch, duration, x_pos):
@@ -727,7 +724,6 @@ class MultistrokeApp(App):
 
         # Wrap in a gridlayout so the main menu is always visible
         layout = GridLayout(cols=1)
-        layout.add_widget(NotePadMenu())
         layout.add_widget(self.manager)
         layout.add_widget(MainMenu())
 
