@@ -117,6 +117,42 @@
 
 <NotePadScreen>:
     size_hint: (1, 1)
+    canvas.after:
+        # Uncomment to check centering.
+        # Line:
+        #     points: [self.width / 2, 0, self.width/2, self.height]
+        # Line:
+        #     points: [0, self.height / 2, self.width, self.height / 2]
+        Color:
+            group: 'recording'
+            rgba: (1, 0, 0, 0)
+        Ellipse:
+            pos: (self.width/2 - self.width/32 - self.width/16 * 3, self.height/2 - self.width/32)
+            size: (self.width/16, self.width/16)
+        Color:
+            group: 'recording'
+            rgba: (1, 0, 0, 0)
+        Ellipse:
+            pos: (self.width/2 - self.width/32 - self.width/16, self.height/2  - self.width/32)
+            size: (self.width/16, self.width/16)
+        Color:
+            group: 'recording'
+            rgba: (1, 0, 0, 0)
+        Ellipse:
+            pos: (self.width/2 - self.width/32 + self.width/16, self.height/2  - self.width/32)
+            size: (self.width/16, self.width/16)
+        Color:
+            group: 'recording'
+            rgba: (1, 0, 0, 0)
+        Ellipse:
+            pos: (self.width/2 - self.width/32 + self.width/16 * 3, self.height/2  - self.width/32)
+            size: (self.width/16, self.width/16)
+        Color:
+            group: 'recording'
+            rgba: (1, 0, 0, 0)
+        Ellipse:
+            pos: (self.width/2 - self.width/16 + self.width/16 * 5, self.height/2  - self.width/16)
+            size: (self.width/8, self.width/8)
     NotePadContainer:
         id: container
     Button:

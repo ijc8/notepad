@@ -499,23 +499,12 @@ class MultistrokeApp(App):
 
         self.undo_history.append(history_val)
 
-    def update_record_affordance(self, idx):
-        filename = 'ink/record_{}'.format(idx)
-        record_indicator = None
-        with open(filename, "rb") as data_file:
-            record_indicator = pickle.load(data_file)
-
-        points = (np.array(sum(record_indicator, [])) + [150, -500]).flat
-
-        # TODO: put this on surface_screen.canvas, centered, preferably via kv.
-        # we could, for example,  just adjust the opacity of existing lines here.
-        with self.surface_screen.canvas.after:
-            Color(rgba=RED)
-            Line(
-                points=points,
-                width=self.surface.line_width,
-                group="indicators",
-            )
+    def update_record_signifiers(self, idx):
+        idx -= 1  # fluidsynth scheduler workaround
+        if idx < 4:
+            self.surface_screen.canvas.after.get_group('recording')[idx].rgba = (1, 0.5, 0.5, 0.7)
+        else:
+            self.surface_screen.canvas.after.get_group('recording')[idx].rgba = (0.9, 0.2, 0.2, 1)
 
     # TODO: we're edging into callback hell here, so maybe it's time to bust out async/await.
     def record(self, callback, save=False):
@@ -525,20 +514,28 @@ class MultistrokeApp(App):
         record_thread.start()
 
         # Play four beeps to indicate tempo and key.
-        for i in range(4):
+        for i in range(5):
+            self.surface_screen.canvas.after.get_group('recording')[i].rgba = (0.8, 0.7, 0.7, 0.3)
             time = self.beats_to_ticks(i + 1)
+            # Bizarrely, this cannot accept the value 0 (it's replaced by None).
             update_callback = self.seq.register_client(
-                name="record_update_callback",
-                callback=lambda a, b, c, idx: self.update_record_affordance(idx),
-                data=(i + 1),
+                name=f"record_update_callback",
+                callback=lambda a, b, c, idx: print('hmm', a, b, c, idx) or self.update_record_signifiers(idx),
+                data=i + 1,
             )
             self.seq.timer(time=time, dest=update_callback, absolute=False)
-            self.seq.note_on(time=time, absolute=False, channel=0, key=60, dest=self.synthID, velocity=80)
+            if i < 5:
+                self.seq.note_on(time=time, absolute=False, channel=0, key=60, dest=self.synthID, velocity=80)
+
+        def reset_record_signifiers(*_):
+            record_thread.join()
+            for color in self.surface_screen.canvas.after.get_group('recording'):
+                color.a = 0
+            callback(data, sr)
 
         finish_callback = self.seq.register_client(
             name="record_finish_callback",
-            callback=lambda *_: (record_thread.join(), self.surface_screen.canvas.after.clear(), callback(data, sr))
-        )
+            callback=reset_record_signifiers)
         self.seq.timer(time=self.beats_to_ticks(9), dest=finish_callback, absolute=False)
 
     def record_helper(self, sr, out, save):
