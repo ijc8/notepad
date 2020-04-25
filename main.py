@@ -31,6 +31,7 @@ durations = {'eighth': 1/2, 'quarter': 1, 'half': 2, 'whole': 4}
 from kivy.core.window import Window
 from kivy.app import App
 from kivy.uix.button import Button
+from kivy.uix.togglebutton import ToggleButton
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.boxlayout import BoxLayout
 from gesturesurface import GestureSurface
@@ -84,9 +85,16 @@ class IconButton(Button):
     image_color = ListProperty([0, 0, 0, 1])
 
 
+class ToggleIconButton(ToggleButton):
+    image = StringProperty()
+    image_color = ListProperty([0, 0, 0, 1])
+
+
 class NotePadSurface(GestureSurface):
     def on_kv_post(self, base_widget):
         super().on_kv_post(base_widget)
+
+        self.mode = 'write'  # other options are 'erase', 'pan'
         # Draw lines here, because self.size isn't set yet in __init__().
         self.lines = []
         self.staff_spacing = self.size[1] / 12
@@ -114,21 +122,24 @@ class NotePadSurface(GestureSurface):
         return [0, height, self.size[0], height]
 
     def on_touch_down(self, touch):
-        if 'button' in touch.profile and touch.button != 'left':
-            # Don't handle right or middle-clicks: let the ScatterPlane take them.
-            return False
+        if self.mode == 'pan':
+            return False  # let ScatterPlane handle it
+        elif self.mode == 'erase':
+            return True  # for now, eat the event and do nothing
         return super().on_touch_down(touch)
 
     def on_touch_move(self, touch):
-        if 'button' in touch.profile and touch.button != 'left':
-            # Don't handle right or middle-clicks: let the ScatterPlane take them.
-            return False
+        if self.mode == 'pan':
+            return False  # let ScatterPlane handle it
+        elif self.mode == 'erase':
+            return True  # for now, eat the event and do nothing
         return super().on_touch_move(touch)
 
     def on_touch_up(self, touch):
-        if 'button' in touch.profile and touch.button != 'left':
-            # Don't handle right or middle-clicks: let the ScatterPlane take them.
-            return False
+        if self.mode == 'pan':
+            return False  # let ScatterPlane handle it
+        elif self.mode == 'erase':
+            return True  # for now, eat the event and do nothing
         return super().on_touch_up(touch)
 
     # TODO: move to util?
@@ -640,7 +651,6 @@ class MultistrokeApp(App):
         return int(round(ticks))
 
     def build(self):
-        # TODO: __init__?
         self.time_scale = 1000
         self.tempo = 120  # bpm
         self.audio = pyaudio.PyAudio()

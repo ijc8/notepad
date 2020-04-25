@@ -123,22 +123,42 @@
         size: root.size
         allow_stretch: True
 
+# can we reduce duplication with IconButton?
+# maybe do this with Behaviors instead?
+<ToggleIconButton@Button>
+    Image:
+        color: root.image_color
+        pos: root.pos
+        source: root.image
+        size: root.size
+        allow_stretch: True
+
 # TODO: tooltips, better icon sizes
 <ToolBar@BoxLayout>:
     orientation: 'vertical'
     size_hint: (None, 1/3)
     width: self.height / 3
-    IconButton:
+    ToggleIconButton:
+        group: 'tools'
         image: 'icons/write.png'
-        on_press: print('ink')
-    IconButton:
+        state: 'down'
+        on_press:
+            app.surface.mode = 'write'
+            if self.state == 'normal': self.state = 'down'
+    ToggleIconButton:
+        group: 'tools'
         image: 'icons/eraser.png'
         image_color: (0.8, 0.5, 0.5, 1)
-        on_press: print('erase')
-    IconButton:
+        on_press:
+            app.surface.mode = 'erase'
+            if self.state == 'normal': self.state = 'down'
+    ToggleIconButton:
+        group: 'tools'
         image: 'icons/pan.png'
         image_color: (1, 1, 1, 1)
-        on_press: print('pan')
+        on_press:
+            app.surface.mode = 'pan'
+            if self.state == 'normal': self.state = 'down'
 
 # TODO: tooltips, better icons sizes
 # perhaps adopt an actual color palette
