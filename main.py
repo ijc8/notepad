@@ -445,23 +445,23 @@ class MultistrokeApp(App):
             self.loop()
 
         t = self.playback()
-        callbackID = self.seq.register_client(
-            name="loop_callback",
-            callback=loop_callback,
-        )
+        # callbackID = self.seq.register_client(
+        #     name="loop_callback",
+        #     callback=loop_callback,
+        # )
 
         # Pause in between loops
-        t += 1000
-        self.seq.timer(int(t), dest=callbackID, absolute=False)
+        # t += 1000
+        # self.seq.timer(int(t), dest=callbackID, absolute=False)
 
     def playback(self):
         t = 0
-        stave_times = [0, 0]
-        for note in self.notes:
-            t_duration = self.beats_to_ticks(note.duration)
-            if note.pitch > 0:
-                self.seq.note_on(time=int(stave_times[note.staff]), absolute=False, channel=0, key=note.pitch, dest=self.synthID, velocity=80)
-            stave_times[note.staff] += t_duration
+        # stave_times = [0, 0]
+        # for note in self.notes:
+        #     t_duration = self.beats_to_ticks(note.duration)
+        #     if note.pitch > 0:
+        #         self.seq.note_on(time=int(stave_times[note.staff]), absolute=False, channel=0, key=note.pitch, dest=self.synthID, velocity=80)
+        #     stave_times[note.staff] += t_duration
         return t
 
     def save_to_file(self, path):
