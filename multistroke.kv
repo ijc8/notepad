@@ -115,49 +115,66 @@
             pos: self.pos
             size: self.size
 
-# TODO: use icons
+<IconButton@Button>
+    Image:
+        color: root.image_color
+        pos: root.pos
+        source: root.image
+        size: root.size
+        allow_stretch: True
+
+# TODO: tooltips, better icon sizes
 <ToolBar@BoxLayout>:
     orientation: 'vertical'
     size_hint: (None, 1/3)
     width: self.height / 3
-    Button:
-        text: 'Ink'
+    IconButton:
+        image: 'icons/write.png'
         on_press: print('ink')
-    Button:
-        text: 'Erase'
+    IconButton:
+        image: 'icons/eraser.png'
+        image_color: (0.8, 0.5, 0.5, 1)
         on_press: print('erase')
-    Button:
-        text: 'Move'
-        on_press: print('move')
+    IconButton:
+        image: 'icons/pan.png'
+        image_color: (1, 1, 1, 1)
+        on_press: print('pan')
 
-# TODO: use icons, reduce clutter
+# TODO: tooltips, better icons sizes
+# perhaps adopt an actual color palette
 <ControlBar@BoxLayout>:
     orientation: 'vertical'
     size_hint: (None, 3/4)
     width: self.height / 8
-    Button:
-        text: 'Play'
+    IconButton:
+        image: 'icons/play.png'
+        image_color: (0, 1, 0, 1)
         on_press: app.playback()
-    Button:
-        text: 'Stop'
+    IconButton:
+        image: 'icons/stop.png'
+        image_color: (1, 0, 0, 1)
         on_press: app.stop()
-    Button:
-        text: 'Loop'
+    IconButton:
+        image: 'icons/loop.png'
         on_press: app.loop()
-    Button:
-        text: 'Record Melody'
+    IconButton:
+        image: 'icons/voice_record.png'
+        image_color: (0.9, 0.2, 0.2, 1)
+        # text: 'Record Melody'
         on_press: app.record_melody()
-    Button:
-        text: 'Record Rhythm'
+    IconButton:
+        image: 'icons/record.png'
+        image_color: (0.9, 0.2, 0.2, 1)
+        # text: 'Record Rhythm'
         on_press: app.record_rhythm()
-    Button:
-        text: 'Undo'
+    IconButton:
+        image: 'icons/undo.png'
         on_press: app.undo()
-    Button:
-        text: 'Redo'
+    IconButton:
+        image: 'icons/redo.png'
         on_press: app.redo()
-    Button:
-        text: 'Clear'
+    IconButton:
+        image: 'icons/clear.png'
         on_press: app.clear()
 
 <NotePadScreen>:

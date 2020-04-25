@@ -30,6 +30,7 @@ durations = {'eighth': 1/2, 'quarter': 1, 'half': 2, 'whole': 4}
 # Kivy
 from kivy.core.window import Window
 from kivy.app import App
+from kivy.uix.button import Button
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.boxlayout import BoxLayout
 from gesturesurface import GestureSurface
@@ -37,7 +38,7 @@ from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
 from kivy.uix.label import Label
 from kivy.uix.scatter import ScatterPlane
 from kivy.graphics import Ellipse, Color, Line
-from kivy.properties import StringProperty, BooleanProperty
+from kivy.properties import StringProperty, BooleanProperty, ListProperty
 
 # Other external libraries
 import numpy as np
@@ -76,6 +77,11 @@ class Tutorial(BoxLayout):
 
 class NotePadScreen(Screen):
     pass
+
+
+class IconButton(Button):
+    image = StringProperty()
+    image_color = ListProperty([0, 0, 0, 1])
 
 
 class NotePadSurface(GestureSurface):
