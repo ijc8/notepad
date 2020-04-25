@@ -647,7 +647,7 @@ class MultistrokeApp(App):
         self.notes = []
         self.seq = fluidsynth.Sequencer(time_scale=self.time_scale)
         self.fs = fluidsynth.Synth()
-        self.debug = False
+        self.debug = True
 
         sfid = None
         if sys.platform == "darwin":
