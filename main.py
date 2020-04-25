@@ -465,10 +465,15 @@ class MultistrokeApp(App):
         return t
 
     def save_to_file(self, path):
-        data = "Hello" # TODO populate
+        gesture_vec = []
+
+        for gesture in self.surface._gestures:
+            gesture_vec.append(
+                (gesture.id, gesture.get_vectors())
+            )
 
         with open(path, "wb") as data_file:
-            pickle.dump(data, data_file)
+            pickle.dump(gesture_vec, data_file)
         return
 
     def save(self, *l):
@@ -501,9 +506,19 @@ class MultistrokeApp(App):
         self.info_popup.open()
 
     def load_from_file(self, filename):
-        data = None
+        self.clear()
+
+        gesture_vec = None
         with open(filename, "rb") as data_file:
-            data = pickle.load(data_file)
+            gesture_vec = pickle.load(data_file)
+
+        for val in gesture_vec:
+            group_id, vectors = val
+            np_vectors = np.array(vectors)
+            with self.surface.canvas:
+                Color(rgba=BLACK)
+                Line(points=np_vectors.flat, group=group_id, width=2)
+
         return
 
     def clear(self):
