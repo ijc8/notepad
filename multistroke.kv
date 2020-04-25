@@ -198,7 +198,11 @@
         on_press: app.clear()
     IconButton:
         image: 'icons/clear.png'
-        on_press: app.save()
+        on_press: app.save_popup.open()
+    IconButton:
+        image: 'icons/clear.png'
+        on_press: app.load_popup.open()
+
 
 <NotePadScreen>:
     size_hint: (1, 1)
@@ -333,3 +337,44 @@
         desc: 'Enable to draw a bounding box around the gesture'
         button_text: 'Draw bbox?'
         value: True
+
+
+<NotePadSavePopup>:
+    title: 'Specify filename'
+    auto_dismiss: True
+    size_hint: None, None
+    size: 400, 400
+    GridLayout:
+        cols: 1
+        spacing: 10
+        padding: 10
+        rows_minimum: {0: 100}
+        Label:
+            text: 'Save to File'
+        TextInput:
+            id: filename
+            multiline: False
+            size_hint: 1, None
+            height: 40
+        Button:
+            id: save_btn
+            text: 'Save'
+            size_hint: 1, None
+            height: 45
+        Button:
+            id: cancel_btn
+            text: 'Cancel'
+            size_hint: 1, None
+            height: 45
+            on_press: root.dismiss()
+
+<NotePadLoadPopup>:
+    auto_dismiss: True
+    size_hint: None, None
+    size: 450, 400
+    FileChooserListView:
+        id: filechooser
+        size_hint: None, None
+        size: 400, 380
+        filters: ['*.ntp']
+        path: os.getcwd() + '/saved/'

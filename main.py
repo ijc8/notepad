@@ -38,9 +38,10 @@ from kivy.uix.boxlayout import BoxLayout
 from gesturesurface import GestureSurface
 from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
 from kivy.uix.label import Label
+from kivy.uix.popup import Popup
 from kivy.uix.scatter import ScatterPlane
 from kivy.graphics import Ellipse, Color, Line
-from kivy.properties import StringProperty, BooleanProperty, ListProperty
+from kivy.properties import StringProperty, BooleanProperty, ListProperty, ObjectProperty
 
 # Other external libraries
 import numpy as np
@@ -64,6 +65,9 @@ WHITE = (1, 1, 1, 1)
 BLACK = (0, 0, 0, 1)
 RED = (1, 0, 0, 1)
 
+
+from helpers import InformationPopup
+
 class MainMenu(GridLayout):
     pass
 
@@ -78,6 +82,12 @@ class Tutorial(BoxLayout):
     pass
 
 class NotePadScreen(Screen):
+    pass
+
+class NotePadSavePopup(Popup):
+    pass
+
+class NotePadLoadPopup(Popup):
     pass
 
 
@@ -454,6 +464,48 @@ class MultistrokeApp(App):
             stave_times[note.staff] += t_duration
         return t
 
+    def save_to_file(self, path):
+        data = "Hello" # TODO populate
+
+        with open(path, "wb") as data_file:
+            pickle.dump(data, data_file)
+        return
+
+    def save(self, *l):
+        path = self.save_popup.ids.filename.text
+        if not path:
+            self.save_popup.dismiss()
+            self.info_popup.text = 'Missing filename'
+            self.info_popup.open()
+            return
+
+        if not path.lower().endswith('.ntp'):
+            path += '.ntp'
+
+        if not path.lower().startswith('saved/'):
+            path = 'saved/' + path
+
+        self.save_to_file(path)
+
+        self.save_popup.dismiss()
+        self.info_popup.text = 'Saved to a file'
+        self.info_popup.open()
+        self.load_popup.ids.filechooser._update_files()
+
+
+    def load(self, filechooser, *l):
+        for f in filechooser.selection:
+            self.load_from_file(filename=f)
+        self.info_popup.text = 'Loaded file'
+        self.load_popup.dismiss()
+        self.info_popup.open()
+
+    def load_from_file(self, filename):
+        data = None
+        with open(filename, "rb") as data_file:
+            data = pickle.load(data_file)
+        return
+
     def clear(self):
         self.undo_history = []
         self.redo_history = []
@@ -736,6 +788,12 @@ class MultistrokeApp(App):
             if codepoint == 'd':
                 self.debug = not self.debug
         Window.bind(on_keyboard=on_keyboard)
+
+        self.save_popup = NotePadSavePopup()
+        self.load_popup = NotePadLoadPopup()
+        self.save_popup.ids.save_btn.bind(on_press=self.save)
+        self.load_popup.ids.filechooser.bind(on_submit=self.load)
+        self.info_popup = InformationPopup()
 
         return layout
 
