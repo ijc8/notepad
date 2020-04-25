@@ -232,14 +232,15 @@ class NotePadContainer(ScatterPlane):
 
 
 class Note:
-    def __init__(self, pitch, duration, x_pos):
+    def __init__(self, pitch, duration, x, staff):
         self.pitch = pitch
         self.duration = duration
-        # Unclear if x_pos belongs here.
-        self.x_pos = x_pos
+        # TODO: restructure things so this information is higher up (namely at the Staff level).
+        self.x = x
+        self.staff = staff
 
     def __repr__(self):
-        return f'Note({self.pitch}, {self.duration}, {self.x_pos})'
+        return f'Note({self.pitch}, {self.duration}, {self.x}, {self.staff})'
 
 class MultistrokeApp(App):
     debug = BooleanProperty(False)
@@ -333,8 +334,7 @@ class MultistrokeApp(App):
             self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
             self.add_to_history_for_undo_redo([g], [])
-
-        if recognized_name.endswith('note'):
+        elif recognized_name.endswith('note'):
             points = np.array(sum(g.get_vectors(), []))
 
             # For saving inks
@@ -354,62 +354,40 @@ class MultistrokeApp(App):
                     Ellipse(pos=new_center - radius, size=(radius * 2, radius * 2))
             # end tmp
 
-            note_height = points[:, 1].mean()
-            x_pos = points[:, 0].mean()
+            x, y = points.mean(axis=0)
             pitches = [64, 65, 67, 69, 71, 72, 74, 76, 77][::-1]
             # TODO: don't do this the dumb way, and move this functionality to NotePadSurface
             lines = range(0, 9)
             staves = [0, 1]
             product = itertools.product(staves, lines)
-            staff, line = min(product, key=lambda p: np.abs(self.surface.get_height(p[0], p[1] / 2) - note_height))
+            staff, line = min(product, key=lambda p: np.abs(self.surface.get_height(p[0], p[1] / 2) - y))
             pitch = pitches[line]
-            note = Note(pitch, durations[recognized_name[:-4]], x_pos)
-            print(note, 'on', staff)
+            note = Note(pitch, durations[recognized_name[:-4]], x, staff)
+            print(note)
 
             self.notes.append(note)
-            self.notes.sort(key=lambda note: note.x_pos)
+            self.notes.sort(key=lambda note: note.x)
             # Hacky way to change note color to black once it's registered.
             self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
             self.add_to_history_for_undo_redo([g], [note])
-
-        if recognized_name.endswith('rest'):
+        elif recognized_name.endswith('rest'):
             points = np.array(sum(g.get_vectors(), []))
 
             # For saving inks
             # with open("ink/eighthrest", "wb") as data_file:
             #    pickle.dump(g.get_vectors(), data_file)
-
-            x_pos = points[:, 0].mean()
-            note = Note(0, durations[recognized_name[:-4]], x_pos)
+            x, y = points.mean(axis=0)
+            staves = [0, 1]
+            staff = min(staves, key=lambda s: np.abs(self.surface.get_height(s, 4.5) - y))
+            note = Note(0, durations[recognized_name[:-4]], x, staff)
+            print(note)
             self.notes.append(note)
-            self.notes.sort(key=lambda note: note.x_pos)
+            self.notes.sort(key=lambda note: note.x)
             # Hacky way to change rest color to black once it's registered.
             self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
             self.add_to_history_for_undo_redo([g], [note])
-
-        # Check is same as 'check' mark.
-        if recognized_name.endswith('play'):
-            # For saving inks
-            # with open("ink/play", "wb") as data_file:
-            #    pickle.dump(g.get_vectors(), data_file)
-            self.playback()
-
-        # Loop sign is half circle sign.
-        if recognized_name.endswith('loop'):
-            # For saving inks
-            # with open("ink/loop", "wb") as data_file:
-            #    pickle.dump(g.get_vectors(), data_file)
-            self.loop()
-
-
-        # Stop sign is 'X' mark
-        if recognized_name.endswith('stop'):
-            # For saving inks
-            # with open("ink/stop", "wb") as data_file:
-            #    pickle.dump(g.get_vectors(), data_file)
-            self.stop()
 
         self.surface.add_widget(g._result_label)
 
@@ -481,7 +459,6 @@ class MultistrokeApp(App):
         self.notes = []
         self.surface._gestures = []
         self.surface.canvas.clear()
-        return
 
     def undo(self):
         if len(self.undo_history) == 0:
@@ -499,7 +476,7 @@ class MultistrokeApp(App):
             if note:
                 self.notes.remove(note)
 
-        self.notes.sort(key=lambda note: note.x_pos)
+        self.notes.sort(key=lambda note: note.x)
         self.redo_history.append(history_val)
 
     def redo(self):
@@ -520,7 +497,7 @@ class MultistrokeApp(App):
 
         for note in notes:
             self.notes.append(note)
-        self.notes.sort(key=lambda note: note.x_pos)
+        self.notes.sort(key=lambda note: note.x)
 
         self.undo_history.append(history_val)
 
@@ -610,7 +587,7 @@ class MultistrokeApp(App):
 
         bar_size = 12 * self.surface.line_spacing
         note_padding = (bar_size * self.notes[-1].duration) / 2
-        return self.notes[-1].x_pos + note_padding
+        return self.notes[-1].x + note_padding
 
     def generate_group_id(self):
         self.group_id_counter += 1
