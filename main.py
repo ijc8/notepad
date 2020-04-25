@@ -446,11 +446,12 @@ class MultistrokeApp(App):
 
     def playback(self):
         t = 0
+        stave_times = [0, 0]
         for note in self.notes:
             t_duration = self.beats_to_ticks(note.duration)
             if note.pitch > 0:
-                self.seq.note_on(time=int(t), absolute=False, channel=0, key=note.pitch, dest=self.synthID, velocity=80)
-            t += t_duration
+                self.seq.note_on(time=int(stave_times[note.staff]), absolute=False, channel=0, key=note.pitch, dest=self.synthID, velocity=80)
+            stave_times[note.staff] += t_duration
         return t
 
     def clear(self):
@@ -609,7 +610,7 @@ class MultistrokeApp(App):
         print(melody)
         group_id = self.generate_group_id()
         xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
-        notes = [Note(pitch, value, x) for (_, value, pitch), x in zip(melody, xs)]
+        notes = [Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)]
 
         self.notes += notes
         self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
@@ -627,7 +628,7 @@ class MultistrokeApp(App):
         print(melody)
         group_id = self.generate_group_id()
         xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
-        notes = [Note(pitch, value, x) for (_, value, pitch), x in zip(melody, xs)]
+        notes = [Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)]
         self.notes += notes
         self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
         print('melody', melody)
