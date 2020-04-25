@@ -8,10 +8,13 @@
 
 <MainMenu>:
     rows: 1
-    size_hint: (1, None)
-    height: 50
+    size_hint_x: 1 if app.debug else 0
+    size_hint_y: None
+    height: 50 if app.debug else 0
+    opacity: 1 if app.debug else 0
     spacing: 5
     padding: 5
+    disabled: not app.debug
     ToggleButton:
         group: 'mainmenu'
         state: 'down'
@@ -38,19 +41,221 @@
             app.manager.current = 'settings'
             if self.state == 'normal': self.state = 'down'
 
-<NotePadSurface>:
-    pos: (0, 0)
-    size: (1240, 1754)  # A4 paper @ 75 DPI
+<TutorialEntry>:
+    size_hint_x: None
+    width: 300
+    orientation: 'horizontal'
+    Widget:
+        id: gesture
+        canvas:
+            Color:
+                rgba: 0, 0, 0, 1
+            PushMatrix
+            Translate:
+                xy: self.center
+            Line:
+                group: 'gesture'
+                points: []
+            PopMatrix
+    Label:
+        text: "="
+        font_size: '32pt'
+        color: 0, 0, 0, 1
+    Label:
+        text: root.name
+        font_size: '20pt'
+        color: 0, 0, 0, 1
+
+<Tutorial>:
     size_hint: (1, 1)
-    line_width: 1.6
-    draw_bbox: True
-    use_random_color: True
+    orientation: 'vertical'
     canvas.before:
         Color:
             rgba: 0.94, 0.9, 0.8, 1
         Rectangle:
             pos: self.pos
             size: self.size
+    Label:
+        id: greeting
+        text: "[size=24pt]Welcome to [b]NotePad[/b][/size]\n[i]multimodal music composition[/i]"
+        halign: 'center'
+        markup: True
+        color: 0, 0, 0, 1
+    AnchorLayout:
+        anchor_x: 'center'
+        GridLayout:
+            size_hint: (None, 1)
+            id: notegrid
+            width: self.minimum_width
+            rows: 4
+            cols: 2
+            spacing: 50
+    AnchorLayout:
+        anchor_x: 'center'
+        Button:
+            size_hint: (0.2, 0.4)
+            id: 'outro'
+            text: "Let's go!"
+            on_press:
+                app.manager.transition.direction = 'up'
+                app.manager.current = 'surface'
+
+<NotePadSurface>:
+    pos: (0, 0)
+    size: (1240, 1754)  # A4 paper @ 75 DPI
+    size_hint: (1, 1)
+    line_width: 1.6
+    draw_bbox: app.debug
+    use_random_color: False
+    color: (0, 0, 1, 0.6)
+    canvas.before:
+        Color:
+            rgba: 0.94, 0.9, 0.8, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+<IconButton@Button>
+    Image:
+        color: root.image_color
+        pos: root.pos
+        source: root.image
+        size: root.size
+        allow_stretch: True
+
+# can we reduce duplication with IconButton?
+# maybe do this with Behaviors instead?
+<ToggleIconButton@Button>
+    Image:
+        color: root.image_color
+        pos: root.pos
+        source: root.image
+        size: root.size
+        allow_stretch: True
+
+# TODO: tooltips, better icon sizes
+<ToolBar@BoxLayout>:
+    orientation: 'vertical'
+    size_hint: (None, 1/3)
+    width: self.height / 3
+    ToggleIconButton:
+        group: 'tools'
+        image: 'icons/write.png'
+        state: 'down'
+        on_press:
+            app.surface.mode = 'write'
+            if self.state == 'normal': self.state = 'down'
+    ToggleIconButton:
+        group: 'tools'
+        image: 'icons/eraser.png'
+        image_color: (0.8, 0.5, 0.5, 1)
+        on_press:
+            app.surface.mode = 'erase'
+            if self.state == 'normal': self.state = 'down'
+    ToggleIconButton:
+        group: 'tools'
+        image: 'icons/pan.png'
+        image_color: (1, 1, 1, 1)
+        on_press:
+            app.surface.mode = 'pan'
+            if self.state == 'normal': self.state = 'down'
+
+# TODO: tooltips, better icons sizes
+# perhaps adopt an actual color palette
+<ControlBar@BoxLayout>:
+    orientation: 'vertical'
+    size_hint: (None, 3/4)
+    width: self.height / 8
+    IconButton:
+        image: 'icons/play.png'
+        image_color: (0, 1, 0, 1)
+        on_press: app.playback()
+    IconButton:
+        image: 'icons/stop.png'
+        image_color: (1, 0, 0, 1)
+        on_press: app.stop()
+    IconButton:
+        image: 'icons/loop.png'
+        on_press: app.loop()
+    IconButton:
+        image: 'icons/voice_record.png'
+        image_color: (0.9, 0.2, 0.2, 1)
+        # text: 'Record Melody'
+        on_press: app.record_melody()
+    IconButton:
+        image: 'icons/record.png'
+        image_color: (0.9, 0.2, 0.2, 1)
+        # text: 'Record Rhythm'
+        on_press: app.record_rhythm()
+    IconButton:
+        image: 'icons/undo.png'
+        on_press: app.undo()
+    IconButton:
+        image: 'icons/redo.png'
+        on_press: app.redo()
+    IconButton:
+        image: 'icons/clear.png'
+        on_press: app.clear()
+    IconButton:
+        image: 'icons/save.png'
+        on_press: app.save_popup.open()
+    IconButton:
+        image: 'icons/open.png'
+        on_press: app.load_popup.open()
+
+
+<NotePadScreen>:
+    size_hint: (1, 1)
+    canvas.after:
+        # Uncomment to check centering.
+        # Line:
+        #     points: [self.width / 2, 0, self.width/2, self.height]
+        # Line:
+        #     points: [0, self.height / 2, self.width, self.height / 2]
+        Color:
+            group: 'recording'
+            rgba: (1, 0, 0, 0)
+        Ellipse:
+            pos: (self.width/2 - self.width/32 - self.width/16 * 3, self.height/2 - self.width/32)
+            size: (self.width/16, self.width/16)
+        Color:
+            group: 'recording'
+            rgba: (1, 0, 0, 0)
+        Ellipse:
+            pos: (self.width/2 - self.width/32 - self.width/16, self.height/2  - self.width/32)
+            size: (self.width/16, self.width/16)
+        Color:
+            group: 'recording'
+            rgba: (1, 0, 0, 0)
+        Ellipse:
+            pos: (self.width/2 - self.width/32 + self.width/16, self.height/2  - self.width/32)
+            size: (self.width/16, self.width/16)
+        Color:
+            group: 'recording'
+            rgba: (1, 0, 0, 0)
+        Ellipse:
+            pos: (self.width/2 - self.width/32 + self.width/16 * 3, self.height/2  - self.width/32)
+            size: (self.width/16, self.width/16)
+        Color:
+            group: 'recording'
+            rgba: (1, 0, 0, 0)
+        Ellipse:
+            pos: (self.width/2 - self.width/16 + self.width/16 * 5, self.height/2  - self.width/16)
+            size: (self.width/8, self.width/8)
+    NotePadContainer:
+        id: container
+    Button:
+        size_hint: (None, None)
+        size: (50, 50)
+        pos_hint: {'right': 1}
+        text: "?"
+        on_press:
+            app.manager.transition.direction = 'down'
+            app.manager.current = 'tutorial'
+    ControlBar:
+        pos_hint: {'left': 0, 'center_y': 0.5}
+    ToolBar:
+        pos_hint: {'right': 1, 'center_y': 0.5}
 
 <NotePadContainer>:
     id: container
@@ -62,27 +267,6 @@
         NotePadSurface:
             id: surface
 
-<NotePadMenu>:
-    rows: 1
-    size_hint: (1, None)
-    height: 50
-    spacing: 5
-    padding: 5
-    Button:
-        text: 'Undo'
-        on_press: app.undo()
-    Button:
-        text: 'Redo'
-        on_press: app.redo()
-    Button:
-        text: 'Clear'
-        on_press: app.clear()
-    Button:
-        text: 'Record Melody'
-        on_press: app.record_melody()
-    Button:
-        text: 'Record Rhythm'
-        on_press: app.record_rhythm()
 
 <MultistrokeAppSettings>:
     pos_hint: {'top': 1}
@@ -99,7 +283,7 @@
             ('Max number of strokes for a single gesture. If 0, the ' +
             'gesture will only be analyzed once the temporal window has ' +
             'expired since the last strokes touch up event')
-        value: 4
+        value: 0
         min: 0
         max: 15
 
@@ -153,3 +337,44 @@
         desc: 'Enable to draw a bounding box around the gesture'
         button_text: 'Draw bbox?'
         value: True
+
+
+<NotePadSavePopup>:
+    title: 'Specify filename'
+    auto_dismiss: True
+    size_hint: None, None
+    size: 400, 400
+    GridLayout:
+        cols: 1
+        spacing: 10
+        padding: 10
+        rows_minimum: {0: 100}
+        Label:
+            text: 'Save to File'
+        TextInput:
+            id: filename
+            multiline: False
+            size_hint: 1, None
+            height: 40
+        Button:
+            id: save_btn
+            text: 'Save'
+            size_hint: 1, None
+            height: 45
+        Button:
+            id: cancel_btn
+            text: 'Cancel'
+            size_hint: 1, None
+            height: 45
+            on_press: root.dismiss()
+
+<NotePadLoadPopup>:
+    auto_dismiss: True
+    size_hint: None, None
+    size: 450, 400
+    FileChooserListView:
+        id: filechooser
+        size_hint: None, None
+        size: 400, 380
+        filters: ['*.ntp']
+        path: os.getcwd() + '/saved/'
