@@ -563,9 +563,9 @@ class MultistrokeApp(App):
         data = b''.join(frames)
         data = np.frombuffer(data, dtype=np.int16).astype(np.int)
         # Throw out the first five beats plus latency, and the last beat.
-        start = (60 / self.tempo) * 5 + latency
-        end = (60 / self.tempo) * 9 + latency
-        out[:] = data[int(start * sr):int(end * sr)]
+        start = int(((60 / self.tempo) * 5 + latency) * sr)
+        length = int(60 / self.tempo * sr * 4)
+        out[:] = data[start:start + length]
 
         if save:
             outfile = 'recorded.wav'
