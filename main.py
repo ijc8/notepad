@@ -23,6 +23,7 @@ described in the file multistroke.kv and managed from this file.
 # Built-in modules
 import sys
 import threading
+import itertools
 
 # These are in terms of number of beats.
 durations = {'eighth': 1/2, 'quarter': 1, 'half': 2, 'whole': 4}
@@ -234,7 +235,11 @@ class Note:
     def __init__(self, pitch, duration, x_pos):
         self.pitch = pitch
         self.duration = duration
+        # Unclear if x_pos belongs here.
         self.x_pos = x_pos
+
+    def __repr__(self):
+        return f'Note({self.pitch}, {self.duration}, {self.x_pos})'
 
 class MultistrokeApp(App):
     debug = BooleanProperty(False)
@@ -352,8 +357,14 @@ class MultistrokeApp(App):
             note_height = points[:, 1].mean()
             x_pos = points[:, 0].mean()
             pitches = [64, 65, 67, 69, 71, 72, 74, 76, 77][::-1]
-            pitch = pitches[min(range(0, 9), key=lambda i: np.abs(self.surface.get_height(0, i / 2) - note_height))]
+            # TODO: don't do this the dumb way, and move this functionality to NotePadSurface
+            lines = range(0, 9)
+            staves = [0, 1]
+            product = itertools.product(staves, lines)
+            staff, line = min(product, key=lambda p: np.abs(self.surface.get_height(p[0], p[1] / 2) - note_height))
+            pitch = pitches[line]
             note = Note(pitch, durations[recognized_name[:-4]], x_pos)
+            print(note, 'on', staff)
 
             self.notes.append(note)
             self.notes.sort(key=lambda note: note.x_pos)
