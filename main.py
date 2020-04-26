@@ -51,8 +51,6 @@ import fluidsynth
 # import wave
 import pickle
 import copy
-from audiostream import get_output
-from audiostream.sources.wave import SineSource
 
 from dollarpy import Recognizer, Template, Point
 
@@ -63,7 +61,6 @@ from settings import MultistrokeSettingsContainer
 import util
 import math
 import transcribe
-from synth_source import SynthSource
 
 WHITE = (1, 1, 1, 1)
 BLACK = (0, 0, 0, 1)
@@ -432,6 +429,7 @@ class MultistrokeApp(App):
         commands = ['play', 'loop', 'stop']
         return name in commands
 
+    # TODO: stop playback immediately
     def stop(self):
         self.shouldLoop = False
 
@@ -448,28 +446,22 @@ class MultistrokeApp(App):
                 return
             self.loop()
 
-        t = self.playback()
-        # callbackID = self.seq.register_client(
-        #     name="loop_callback",
-        #     callback=loop_callback,
-        # )
+        t = int(self.playback())
+        callbackID = self.seq.register_client(
+            name="loop_callback",
+            callback=loop_callback,
+        )
 
-        # Pause in between loops
-        # t += 1000
-        # self.seq.timer(int(t), dest=callbackID, absolute=False)
+        self.seq.timer(t, dest=callbackID, absolute=False)
 
     def playback(self):
-        print('playback')
         stave_times = [0, 0]
         for note in self.notes:
             t_duration = self.beats_to_ticks(note.duration)
             if note.pitch > 0:
-                v = 127
-                print(f'time = {self.seq.get_tick()}, playing note {note.pitch} in {int(stave_times[note.staff])} with v = {v}')
-                self.seq.note_on(time=int(stave_times[note.staff]), absolute=False, channel=0, key=note.pitch, dest=self.synthID, velocity=v)
+                self.seq.note_on(time=int(stave_times[note.staff]), absolute=False, channel=0, key=note.pitch, dest=self.synthID, velocity=127)
             stave_times[note.staff] += t_duration
-        print('end playback', stave_times)
-        return stave_times
+        return max(stave_times)
 
     def save_to_file(self, path):
         data = "Hello" # TODO populate
@@ -707,27 +699,22 @@ class MultistrokeApp(App):
         self.fs = fluidsynth.Synth()
         self.debug = False
 
-        print('platform is', platform)
-        # if platform == "macosx":
-        #     self.fs.start('coreaudio')
-        # elif platform == "linux":
-        #     self.fs.start('alsa')
-        # elif platform == "android":
-        #     self.fs.start('oboe')
-        # else:
-        #     print('Unsupported platform', platform)
+        if platform == "linux":
+            self.fs.start('alsa')
+            sfid = self.fs.sfload("/usr/share/sounds/sf2/FluidR3_GM.sf2")
+        elif platform == "macosx":
+            self.fs.start('coreaudio')
+            sfid = self.fs.sfload("/Library/Audio/Sounds/Banks/FluidR3_GM.sf2")
+        elif platform == "android":
+            self.fs.start('oboe')
+            # This assumes you have FluidR3_GM.sf2 in the project directory when running buildozer.
+            # (And that the soundfont actually made it into the Android package.)
+            sfid = self.fs.sfload("FluidR3_GM.sf2")
+        else:
+            exit('Unsupported platform', platform)
 
-        # Audiostream test:
-        self.stream = get_output(channels=2, rate=22050, buffersize=1024)
-        #self.sinsource = SineSource(self.stream, 440)
-        #self.sinsource.start()
-        self.synthsource = SynthSource(self.stream, self.fs)
-        self.synthsource.start()
-
-        sfid = self.fs.sfload("FluidR3_GM.sf2")
-        print(os.getcwd())
-        print(os.listdir())
-        print('sfid is', sfid)
+        if sfid < 0:
+            exit("Couldn't load soundfont.")
 
         self.fs.program_select(0, sfid, 0, 0)
         self.synthID = self.seq.register_fluidsynth(self.fs)
