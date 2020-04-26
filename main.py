@@ -63,6 +63,7 @@ from settings import MultistrokeSettingsContainer
 import util
 import math
 import transcribe
+from synth_source import SynthSource
 
 WHITE = (1, 1, 1, 1)
 BLACK = (0, 0, 0, 1)
@@ -697,10 +698,6 @@ class MultistrokeApp(App):
         return int(round(ticks))
 
     def build(self):
-        # Audiostream test:
-        self.stream = get_output(channels=2, rate=22050, buffersize=1024)
-        self.sinsource = SineSource(self.stream, 440)
-        self.sinsource.start()
 
         self.time_scale = 1000
         self.tempo = 120  # bpm
@@ -711,16 +708,26 @@ class MultistrokeApp(App):
         self.debug = False
 
         print('platform is', platform)
-        if platform == "macosx":
-            self.fs.start('coreaudio')
-        elif platform == "linux":
-            self.fs.start('alsa')
-        elif platform == "android":
-            self.fs.start('oboe')
-        else:
-            print('Unsupported platform', platform)
+        # if platform == "macosx":
+        #     self.fs.start('coreaudio')
+        # elif platform == "linux":
+        #     self.fs.start('alsa')
+        # elif platform == "android":
+        #     self.fs.start('oboe')
+        # else:
+        #     print('Unsupported platform', platform)
+
+        # Audiostream test:
+        self.stream = get_output(channels=2, rate=22050, buffersize=1024)
+        #self.sinsource = SineSource(self.stream, 440)
+        #self.sinsource.start()
+        self.synthsource = SynthSource(self.stream, self.fs)
+        self.synthsource.start()
 
         sfid = self.fs.sfload("FluidR3_GM.sf2")
+        print(os.getcwd())
+        print(os.listdir())
+        print('sfid is', sfid)
 
         self.fs.program_select(0, sfid, 0, 0)
         self.synthID = self.seq.register_fluidsynth(self.fs)
