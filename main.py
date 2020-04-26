@@ -50,6 +50,8 @@ import numpy as np
 # import wave
 import pickle
 import copy
+from audiostream import get_output
+from audiostream.sources.wave import SineSource
 
 from dollarpy import Recognizer, Template, Point
 
@@ -691,6 +693,11 @@ class MultistrokeApp(App):
         return int(round(ticks))
 
     def build(self):
+        # Audiostream test:
+        self.stream = get_output(channels=2, rate=22050, buffersize=1024)
+        self.sinsource = SineSource(self.stream, 440)
+        self.sinsource.start()
+
         self.time_scale = 1000
         self.tempo = 120  # bpm
         # self.audio = pyaudio.PyAudio()
