@@ -42,10 +42,11 @@ from kivy.uix.popup import Popup
 from kivy.uix.scatter import ScatterPlane
 from kivy.graphics import Ellipse, Color, Line
 from kivy.properties import StringProperty, BooleanProperty, ListProperty, ObjectProperty
+from kivy.utils import platform
 
 # Other external libraries
 import numpy as np
-# import fluidsynth
+import fluidsynth
 # import pyaudio
 # import wave
 import pickle
@@ -457,14 +458,17 @@ class MultistrokeApp(App):
         # self.seq.timer(int(t), dest=callbackID, absolute=False)
 
     def playback(self):
-        t = 0
-        # stave_times = [0, 0]
-        # for note in self.notes:
-        #     t_duration = self.beats_to_ticks(note.duration)
-        #     if note.pitch > 0:
-        #         self.seq.note_on(time=int(stave_times[note.staff]), absolute=False, channel=0, key=note.pitch, dest=self.synthID, velocity=80)
-        #     stave_times[note.staff] += t_duration
-        return t
+        print('playback')
+        stave_times = [0, 0]
+        for note in self.notes:
+            t_duration = self.beats_to_ticks(note.duration)
+            if note.pitch > 0:
+                v = 127
+                print(f'time = {self.seq.get_tick()}, playing note {note.pitch} in {int(stave_times[note.staff])} with v = {v}')
+                self.seq.note_on(time=int(stave_times[note.staff]), absolute=False, channel=0, key=note.pitch, dest=self.synthID, velocity=v)
+            stave_times[note.staff] += t_duration
+        print('end playback', stave_times)
+        return stave_times
 
     def save_to_file(self, path):
         data = "Hello" # TODO populate
@@ -702,20 +706,24 @@ class MultistrokeApp(App):
         self.tempo = 120  # bpm
         # self.audio = pyaudio.PyAudio()
         self.notes = []
-        # self.seq = fluidsynth.Sequencer(time_scale=self.time_scale)
-        # self.fs = fluidsynth.Synth()
+        self.seq = fluidsynth.Sequencer(time_scale=self.time_scale)
+        self.fs = fluidsynth.Synth()
         self.debug = False
 
-        # sfid = None
-        # if sys.platform == "darwin":
-        #     self.fs.start('coreaudio')
-        #     sfid = self.fs.sfload("/Library/Audio/Sounds/Banks/FluidR3_GM.sf2")
-        # else:
-        #     self.fs.start('alsa')
-        #     sfid = self.fs.sfload("/usr/share/sounds/sf2/FluidR3_GM.sf2")
+        print('platform is', platform)
+        if platform == "macosx":
+            self.fs.start('coreaudio')
+        elif platform == "linux":
+            self.fs.start('alsa')
+        elif platform == "android":
+            self.fs.start('oboe')
+        else:
+            print('Unsupported platform', platform)
 
-        # self.fs.program_select(0, sfid, 0, 0)
-        # self.synthID = self.seq.register_fluidsynth(self.fs)
+        sfid = self.fs.sfload("FluidR3_GM.sf2")
+
+        self.fs.program_select(0, sfid, 0, 0)
+        self.synthID = self.seq.register_fluidsynth(self.fs)
 
         self.undo_history = []
         self.redo_history = []

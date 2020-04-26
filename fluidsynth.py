@@ -60,7 +60,7 @@ FLUID_PLAYER_PLAYING = 1  # Player is currently playing
 FLUID_PLAYER_DONE = 2  # Player is finished playing
 # Driver names
 AUDIO_DRIVER_NAMES = ("alsa, coreaudio, dart, dsound, file, jack, oss, portaudio, pulseaudio, "
-                      "sdl2, sndman, waveout").split(", ")
+                      "sdl2, sndman, waveout, opensles, oboe").split(", ")
 MIDI_DRIVER_NAMES = "alsa_raw, alsa_seq, coremidi, jack, midishare, oss, winmidi".split(", ")
 AUDIO_FILE_TYPES = ("aiff, au, auto, avr, caf, flac, htk, iff, mat, oga, paf, pvf, raw, sd2, sds, "
                     "sf, voc, w64, wav, xi").split(", ")
@@ -1237,7 +1237,7 @@ class Synth:
         """
         if driver is not None:
             if driver not in AUDIO_DRIVER_NAMES:
-                raise ValueError("Unknown audio driver '%'." % driver)
+                raise ValueError("Unknown audio driver '%s'." % driver)
             self.setting('audio.driver', driver)
 
             if device is not None:
@@ -1247,7 +1247,7 @@ class Synth:
 
         if midi_driver is not None:
             if midi_driver not in MIDI_DRIVER_NAMES:
-                raise ValueError("Unknown MIDI driver '%'." % midi_driver)
+                raise ValueError("Unknown MIDI driver '%s'." % midi_driver)
             self.setting('midi.driver', midi_driver)
             self.router = new_fluid_midi_router(self.settings, fluid_synth_handle_midi_event,
                                                 self.synth)
