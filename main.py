@@ -47,10 +47,13 @@ from kivy.utils import platform
 # Other external libraries
 import numpy as np
 import fluidsynth
-# import pyaudio
-# import wave
+import wave
 import pickle
 import copy
+# TODO: mobile support for recording, transcription
+is_desktop = platform in ('windows', 'macosx', 'linux')
+if is_desktop:
+    import pyaudio
 
 from dollarpy import Recognizer, Template, Point
 
@@ -60,7 +63,8 @@ from gesturedatabase import GestureDatabase
 from settings import MultistrokeSettingsContainer
 import util
 import math
-import transcribe
+if is_desktop:
+    import transcribe
 
 WHITE = (1, 1, 1, 1)
 BLACK = (0, 0, 0, 1)
@@ -562,36 +566,38 @@ class MultistrokeApp(App):
 
     # TODO: we're edging into callback hell here, so maybe it's time to bust out async/await.
     def record(self, callback, save=False):
-        callback(np.zeros(44100 * 2), 44100)
-        # sr = 44100
-        # data = np.zeros(int(60 / self.tempo * sr * 4), dtype=np.int)
-        # record_thread = threading.Thread(target=self.record_helper, args=(sr, data, save))
-        # record_thread.start()
+        if not is_desktop:
+            callback(np.zeros(44100 * 2), 44100)
+            return
+        sr = 44100
+        data = np.zeros(int(60 / self.tempo * sr * 4), dtype=np.int)
+        record_thread = threading.Thread(target=self.record_helper, args=(sr, data, save))
+        record_thread.start()
 
-        # # Play four beeps to indicate tempo and key.
-        # for i in range(5):
-        #     self.surface_screen.canvas.after.get_group('recording')[i].rgba = (0.8, 0.7, 0.7, 0.3)
-        #     time = self.beats_to_ticks(i + 1)
-        #     # Bizarrely, this cannot accept the value 0 (it's replaced by None).
-        #     update_callback = self.seq.register_client(
-        #         name=f"record_update_callback",
-        #         callback=lambda a, b, c, idx: print('hmm', a, b, c, idx) or self.update_record_signifiers(idx),
-        #         data=i + 1,
-        #     )
-        #     self.seq.timer(time=time, dest=update_callback, absolute=False)
-        #     if i < 5:
-        #         self.seq.note_on(time=time, absolute=False, channel=0, key=60, dest=self.synthID, velocity=80)
+        # Play four beeps to indicate tempo and key.
+        for i in range(5):
+            self.surface_screen.canvas.after.get_group('recording')[i].rgba = (0.8, 0.7, 0.7, 0.3)
+            time = self.beats_to_ticks(i + 1)
+            # Bizarrely, this cannot accept the value 0 (it's replaced by None).
+            update_callback = self.seq.register_client(
+                name=f"record_update_callback",
+                callback=lambda a, b, c, idx: print('hmm', a, b, c, idx) or self.update_record_signifiers(idx),
+                data=i + 1,
+            )
+            self.seq.timer(time=time, dest=update_callback, absolute=False)
+            if i < 5:
+                self.seq.note_on(time=time, absolute=False, channel=0, key=60, dest=self.synthID, velocity=80)
 
-        # def reset_record_signifiers(*_):
-        #     record_thread.join()
-        #     for color in self.surface_screen.canvas.after.get_group('recording'):
-        #         color.a = 0
-        #     callback(data, sr)
+        def reset_record_signifiers(*_):
+            record_thread.join()
+            for color in self.surface_screen.canvas.after.get_group('recording'):
+                color.a = 0
+            callback(data, sr)
 
-        # finish_callback = self.seq.register_client(
-        #     name="record_finish_callback",
-        #     callback=reset_record_signifiers)
-        # self.seq.timer(time=self.beats_to_ticks(9), dest=finish_callback, absolute=False)
+        finish_callback = self.seq.register_client(
+            name="record_finish_callback",
+            callback=reset_record_signifiers)
+        self.seq.timer(time=self.beats_to_ticks(9), dest=finish_callback, absolute=False)
 
     def record_helper(self, sr, out, save):
         """Helper function. Plays one measure of beats and then records one measure of audio."""
@@ -605,18 +611,18 @@ class MultistrokeApp(App):
                                  frames_per_buffer=frame_size)
         print('latencies', stream.get_input_latency(), stream.get_output_latency())
         # for the moment we're assuming pyaudio's output latency is a good estimate of fluidsynth's...
-        # latency = stream.get_input_latency() + stream.get_output_latency()
+        latency = stream.get_input_latency() + stream.get_output_latency()
 
-        # frames = []
-        # for i in range(0, int(sr / frame_size * length)):
-        #     data = stream.read(frame_size)
-        #     frames.append(data)
+        frames = []
+        for i in range(0, int(sr / frame_size * length)):
+            data = stream.read(frame_size)
+            frames.append(data)
 
-        # stream.stop_stream()
-        # stream.close()
+        stream.stop_stream()
+        stream.close()
 
-        # data = b''.join(frames)
-        # data = np.frombuffer(data, dtype=np.int16).astype(np.int)
+        data = b''.join(frames)
+        data = np.frombuffer(data, dtype=np.int16).astype(np.int)
         # Throw out the first five beats plus latency, and the last beat.
         start = int(((60 / self.tempo) * 5 + latency) * sr)
         length = int(60 / self.tempo * sr * 4)
@@ -651,37 +657,39 @@ class MultistrokeApp(App):
         self.record(self.transcribe_melody)
 
     def transcribe_rhythm(self, audio, sr):
-        rhythm = list(transcribe.extract_rhythm(audio, sr, self.tempo, verbose=self.debug))
-        print('rhythm', rhythm)
-        # HACK for prototype demo
-        melody = []
-        for (start, end) in zip(rhythm, rhythm[1:] + [4]):
-            melody.append((start, end - start, 64))
-        print(melody)
-        group_id = self.generate_group_id()
-        xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
-        notes = [Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)]
+        if is_desktop:
+            rhythm = list(transcribe.extract_rhythm(audio, sr, self.tempo, verbose=self.debug))
+            print('rhythm', rhythm)
+            # HACK for prototype demo
+            melody = []
+            for (start, end) in zip(rhythm, rhythm[1:] + [4]):
+                melody.append((start, end - start, 64))
+            print(melody)
+            group_id = self.generate_group_id()
+            xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
+            notes = [Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)]
 
-        self.notes += notes
-        self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
+            self.notes += notes
+            self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
 
     def transcribe_melody(self, audio, sr):
-        melody = transcribe.extract_melody(audio, sr, self.tempo, verbose=self.debug)
-        # For the demo, we're going to keep this in the treble clef: say, in a range of 62 to 79.
-        # TODO: draw ledger lines
-        def get_in_range(p):
-            p = (p - 62) % 24
-            if p > 79 - 62:
-                p %= 12
-            return p + 62
-        melody = [(s, v, get_in_range(p) if p else 0) for s, v, p in melody]
-        print(melody)
-        group_id = self.generate_group_id()
-        xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
-        notes = [Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)]
-        self.notes += notes
-        self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
-        print('melody', melody)
+        if is_desktop:
+            melody = transcribe.extract_melody(audio, sr, self.tempo, verbose=self.debug)
+            # For the demo, we're going to keep this in the treble clef: say, in a range of 62 to 79.
+            # TODO: draw ledger lines
+            def get_in_range(p):
+                p = (p - 62) % 24
+                if p > 79 - 62:
+                    p %= 12
+                return p + 62
+            melody = [(s, v, get_in_range(p) if p else 0) for s, v, p in melody]
+            print(melody)
+            group_id = self.generate_group_id()
+            xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
+            notes = [Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)]
+            self.notes += notes
+            self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
+            print('melody', melody)
 
     def beats_to_ticks(self, beats):
         ticks = self.time_scale / (self.tempo / 60) * beats
@@ -693,7 +701,8 @@ class MultistrokeApp(App):
 
         self.time_scale = 1000
         self.tempo = 120  # bpm
-        # self.audio = pyaudio.PyAudio()
+        if is_desktop:
+            self.audio = pyaudio.PyAudio()
         self.notes = []
         self.seq = fluidsynth.Sequencer(time_scale=self.time_scale)
         self.fs = fluidsynth.Synth()
