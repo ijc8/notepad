@@ -41,8 +41,7 @@ class GestureContainer(EventDispatcher):
 
     :Properties:
         `active`
-            Set to False once the gesture is complete (meets
-            GestureSurface.temporal_window`)
+            Set to True once the gesture needs post-processing
 
             :attr:`active` is a
             :class:`~kivy.properties.BooleanProperty`
@@ -53,13 +52,6 @@ class GestureContainer(EventDispatcher):
 
             :attr:`active_strokes` is a
             :class:`~kivy.properties.NumericProperty`
-
-        `was_merged`
-            Indicates that this gesture has been merged with another
-            gesture and should be considered discarded.
-
-            :attr:`was_merged` is a
-            :class:`~kivy.properties.BooleanProperty`
 
         `bbox`
             Dictionary with keys minx, miny, maxx, maxy. Represents the size
@@ -82,7 +74,6 @@ class GestureContainer(EventDispatcher):
     '''
     active = BooleanProperty(True)
     active_strokes = NumericProperty(0)
-    was_merged = BooleanProperty(False)
     bbox = DictProperty({'minx': float('inf'), 'miny': float('inf'),
                          'maxx': float('-inf'), 'maxy': float('-inf')})
     width = NumericProperty(0)
@@ -136,12 +127,7 @@ class GestureContainer(EventDispatcher):
 
     def handles(self, touch):
         '''Returns True if this container handles the given touch'''
-        if not self.active:
-            return False
         return str(touch.uid) in self._strokes
-
-    def accept_stroke(self, count=1):
-        return True
 
     def update_bbox(self, touch):
         '''Update gesture bbox from a touch coordinate'''
@@ -346,7 +332,7 @@ class GestureSurface(FloatLayout):
         # test for colliding gestures. If found, merge them to one.
         g = self.get_gesture(touch)
         collision = self.find_colliding_gesture(touch)
-        if collision is not None and g.accept_stroke(len(collision._strokes)):
+        if collision is not None:
             merge = self.merge_gestures(g, collision)
             if g.was_merged:
                 self.dispatch('on_gesture_merge', g, collision)
@@ -372,10 +358,6 @@ class GestureSurface(FloatLayout):
 
         g = self.get_gesture(touch)
         g.complete_stroke()
-
-        # If this stroke hit the maximum limit, dispatch immediately
-        if not g.accept_stroke():
-            self._complete_dispatcher(0)
 
         # dispatch later only if we have a window
         elif self.temporal_window > 0:
@@ -447,7 +429,7 @@ class GestureSurface(FloatLayout):
         '''
         touch_x, touch_y = touch.pos
         for g in self._gestures:
-            if g.active and not g.handles(touch) and g.accept_stroke():
+            if g.active and not g.handles(touch):
                 bb = g.bbox
                 margin = self.bbox_margin
                 minx = bb['minx'] - margin
@@ -545,7 +527,7 @@ class GestureSurface(FloatLayout):
 
             # temporal window has expired. The gesture
             # is complete; need to dispatch _complete or _discard event.
-            if not g.accept_stroke() or t1 <= t2:
+            if t1 <= t2:
                 discard = False
                 if g.width < 5 and g.height < 5:
                     discard = True
