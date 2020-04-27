@@ -42,7 +42,7 @@ class GestureContainer(EventDispatcher):
     :Properties:
         `active`
             Set to False once the gesture is complete (meets
-            `max_stroke` setting or `GestureSurface.temporal_window`)
+            GestureSurface.temporal_window`)
 
             :attr:`active` is a
             :class:`~kivy.properties.BooleanProperty`
@@ -52,14 +52,6 @@ class GestureContainer(EventDispatcher):
             concurrent touches associated with this gesture.
 
             :attr:`active_strokes` is a
-            :class:`~kivy.properties.NumericProperty`
-
-        `max_strokes`
-            Max number of strokes allowed in the gesture. This
-            is set by `GestureSurface.max_strokes` but can
-            be overridden for example from `on_gesture_start`.
-
-            :attr:`max_strokes` is a
             :class:`~kivy.properties.NumericProperty`
 
         `was_merged`
@@ -90,7 +82,6 @@ class GestureContainer(EventDispatcher):
     '''
     active = BooleanProperty(True)
     active_strokes = NumericProperty(0)
-    max_strokes = NumericProperty(0)
     was_merged = BooleanProperty(False)
     bbox = DictProperty({'minx': float('inf'), 'miny': float('inf'),
                          'maxx': float('-inf'), 'maxy': float('-inf')})
@@ -150,10 +141,7 @@ class GestureContainer(EventDispatcher):
         return str(touch.uid) in self._strokes
 
     def accept_stroke(self, count=1):
-        '''Returns True if this container can accept `count` new strokes'''
-        if not self.max_strokes:
-            return True
-        return len(self._strokes) + count <= self.max_strokes
+        return True
 
     def update_bbox(self, touch):
         '''Update gesture bbox from a touch coordinate'''
@@ -203,19 +191,9 @@ class GestureSurface(FloatLayout):
         `temporal_window`
             Time to wait from the last touch_up event before attempting
             to recognize the gesture. If you set this to 0, the
-            `on_gesture_complete` event is not fired unless the
-            :attr:`max_strokes` condition is met.
+            `on_gesture_complete` event is not fired.
 
             :attr:`temporal_window` is a
-            :class:`~kivy.properties.NumericProperty` and defaults to 2.0
-
-        `max_strokes`
-            Max number of strokes in a single gesture; if this is reached,
-            recognition will start immediately on the final touch_up event.
-            If this is set to 0, the `on_gesture_complete` event is not
-            fired unless the :attr:`temporal_window` expires.
-
-            :attr:`max_strokes` is a
             :class:`~kivy.properties.NumericProperty` and defaults to 2.0
 
         `bbox_margin`
@@ -288,8 +266,7 @@ class GestureSurface(FloatLayout):
 
         `on_gesture_complete` :class:`GestureContainer`
             Fired when a set of strokes is considered a complete gesture,
-            this happens when `temporal_window` expires or `max_strokes`
-            is reached. Typically you will bind to this event and use
+            this happens when `temporal_window` expires. Typically you will bind to this event and use
             the provided `GestureContainer` get_vectors() method to
             match against your gesture database.
 
@@ -306,7 +283,6 @@ class GestureSurface(FloatLayout):
 
     temporal_window = NumericProperty(2.0)
     draw_timeout = NumericProperty(3.0)
-    max_strokes = NumericProperty(0)
     bbox_margin = NumericProperty(30)
 
     line_width = NumericProperty(2)
@@ -416,7 +392,7 @@ class GestureSurface(FloatLayout):
         if self.use_random_color:
             col = hsv_to_rgb(random(), 1., 1.)
 
-        g = GestureContainer(touch, max_strokes=self.max_strokes, color=col)
+        g = GestureContainer(touch, color=col)
 
         # Create the bounding box Rectangle for the gesture
         if self.draw_bbox:
@@ -567,7 +543,7 @@ class GestureSurface(FloatLayout):
             t1 = g._update_time + twin
             t2 = get_time() + UNDERSHOOT_MARGIN
 
-            # max_strokes reached, or temporal window has expired. The gesture
+            # temporal window has expired. The gesture
             # is complete; need to dispatch _complete or _discard event.
             if not g.accept_stroke() or t1 <= t2:
                 discard = False
