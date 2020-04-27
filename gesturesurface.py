@@ -41,11 +41,12 @@ class GestureContainer(EventDispatcher):
 
     :Properties:
         `active`
-            Set to False once the gesture is complete (meets
-            `max_stroke` setting or `GestureSurface.temporal_window`)
+            Set to True once the gesture needs post-processing
 
             :attr:`active` is a
             :class:`~kivy.properties.BooleanProperty`
+
+        `was_merged`
 
         `active_strokes`
             Number of strokes currently active in the gesture, ie
@@ -53,21 +54,6 @@ class GestureContainer(EventDispatcher):
 
             :attr:`active_strokes` is a
             :class:`~kivy.properties.NumericProperty`
-
-        `max_strokes`
-            Max number of strokes allowed in the gesture. This
-            is set by `GestureSurface.max_strokes` but can
-            be overridden for example from `on_gesture_start`.
-
-            :attr:`max_strokes` is a
-            :class:`~kivy.properties.NumericProperty`
-
-        `was_merged`
-            Indicates that this gesture has been merged with another
-            gesture and should be considered discarded.
-
-            :attr:`was_merged` is a
-            :class:`~kivy.properties.BooleanProperty`
 
         `bbox`
             Dictionary with keys minx, miny, maxx, maxy. Represents the size
@@ -90,8 +76,6 @@ class GestureContainer(EventDispatcher):
     '''
     active = BooleanProperty(True)
     active_strokes = NumericProperty(0)
-    max_strokes = NumericProperty(0)
-    was_merged = BooleanProperty(False)
     bbox = DictProperty({'minx': float('inf'), 'miny': float('inf'),
                          'maxx': float('-inf'), 'maxy': float('-inf')})
     width = NumericProperty(0)
@@ -111,6 +95,8 @@ class GestureContainer(EventDispatcher):
         self._update_time = None
         self._cleanup_time = None
         self._cache_time = 0
+        self.was_merged = False
+        self.active = True
 
         # We can cache the candidate here to save zip()/Vector instantiation
         self._vectors = None
@@ -145,15 +131,7 @@ class GestureContainer(EventDispatcher):
 
     def handles(self, touch):
         '''Returns True if this container handles the given touch'''
-        if not self.active:
-            return False
         return str(touch.uid) in self._strokes
-
-    def accept_stroke(self, count=1):
-        '''Returns True if this container can accept `count` new strokes'''
-        if not self.max_strokes:
-            return True
-        return len(self._strokes) + count <= self.max_strokes
 
     def update_bbox(self, touch):
         '''Update gesture bbox from a touch coordinate'''
@@ -203,19 +181,9 @@ class GestureSurface(FloatLayout):
         `temporal_window`
             Time to wait from the last touch_up event before attempting
             to recognize the gesture. If you set this to 0, the
-            `on_gesture_complete` event is not fired unless the
-            :attr:`max_strokes` condition is met.
+            `on_gesture_complete` event is not fired.
 
             :attr:`temporal_window` is a
-            :class:`~kivy.properties.NumericProperty` and defaults to 2.0
-
-        `max_strokes`
-            Max number of strokes in a single gesture; if this is reached,
-            recognition will start immediately on the final touch_up event.
-            If this is set to 0, the `on_gesture_complete` event is not
-            fired unless the :attr:`temporal_window` expires.
-
-            :attr:`max_strokes` is a
             :class:`~kivy.properties.NumericProperty` and defaults to 2.0
 
         `bbox_margin`
@@ -273,23 +241,9 @@ class GestureSurface(FloatLayout):
             :class:`~kivy.properties.NumericProperty` and defaults to 0.1
 
     :Events:
-        `on_gesture_start` :class:`GestureContainer`
-            Fired when a new gesture is initiated on the surface, i.e. the
-            first on_touch_down that does not collide with an existing
-            gesture on the surface.
-
-        `on_gesture_extend` :class:`GestureContainer`
-            Fired when a touch_down event occurs within an existing gesture.
-
-        `on_gesture_merge` :class:`GestureContainer`, :class:`GestureContainer`
-            Fired when two gestures collide and get merged to one gesture.
-            The first argument is the gesture that has been merged (no longer
-            valid); the second is the combined (resulting) gesture.
-
         `on_gesture_complete` :class:`GestureContainer`
             Fired when a set of strokes is considered a complete gesture,
-            this happens when `temporal_window` expires or `max_strokes`
-            is reached. Typically you will bind to this event and use
+            this happens when `temporal_window` expires. Typically you will bind to this event and use
             the provided `GestureContainer` get_vectors() method to
             match against your gesture database.
 
@@ -306,7 +260,6 @@ class GestureSurface(FloatLayout):
 
     temporal_window = NumericProperty(2.0)
     draw_timeout = NumericProperty(3.0)
-    max_strokes = NumericProperty(0)
     bbox_margin = NumericProperty(30)
 
     line_width = NumericProperty(2)
@@ -319,9 +272,6 @@ class GestureSurface(FloatLayout):
         super(GestureSurface, self).__init__(**kwargs)
         # A list of GestureContainer objects (all gestures on the surface)
         self._gestures = []
-        self.register_event_type('on_gesture_start')
-        self.register_event_type('on_gesture_extend')
-        self.register_event_type('on_gesture_merge')
         self.register_event_type('on_gesture_complete')
         self.register_event_type('on_gesture_cleanup')
         self.register_event_type('on_gesture_discard')
@@ -340,20 +290,11 @@ class GestureSurface(FloatLayout):
 
         touch.grab(self)
 
-        # Add the stroke to existing gesture, or make a new one
-        g = self.find_colliding_gesture(touch)
-        new = False
-        if g is None:
-            g = self.init_gesture(touch)
-            new = True
+        # Create a new gesture.
+        g = self.init_gesture(touch)
 
-        # We now belong to a gesture (new or old); start a new stroke.
+        # We now belong to a new gesture; start a new stroke.
         self.init_stroke(g, touch)
-
-        if new:
-            self.dispatch('on_gesture_start', g, touch)
-        else:
-            self.dispatch('on_gesture_extend', g, touch)
 
         return True
 
@@ -366,19 +307,9 @@ class GestureSurface(FloatLayout):
         if not self.collide_point(touch.x, touch.y):
             return
 
-        # Retrieve the GestureContainer object that handles this touch, and
-        # test for colliding gestures. If found, merge them to one.
+        # Retrieve the GestureContainer object that handles this touch.
         g = self.get_gesture(touch)
-        collision = self.find_colliding_gesture(touch)
-        if collision is not None and g.accept_stroke(len(collision._strokes)):
-            merge = self.merge_gestures(g, collision)
-            if g.was_merged:
-                self.dispatch('on_gesture_merge', g, collision)
-            else:
-                self.dispatch('on_gesture_merge', collision, g)
-            g = merge
-        else:
-            g.update_bbox(touch)
+        g.update_bbox(touch)
 
         # Add the new point to gesture stroke list and update the canvas line
         g._strokes[str(touch.uid)].points += (touch.x, touch.y)
@@ -389,6 +320,29 @@ class GestureSurface(FloatLayout):
             self._update_canvas_bbox(g)
         return True
 
+    def is_bbox_intersecting_helper(self, bb, x, y):
+        margin = self.bbox_margin
+        minx = bb['minx'] - margin
+        miny = bb['miny'] - margin
+        maxx = bb['maxx'] + margin
+        maxy = bb['maxy'] + margin
+        return minx <= x <= maxx and miny <= y <= maxy
+
+    def is_bbox_intersecting(self, bb, other_bb):
+        return self.is_bbox_intersecting_helper(bb, other_bb['minx'], other_bb['miny']) or \
+            self.is_bbox_intersecting_helper(bb, other_bb['minx'], other_bb['maxy']) or \
+            self.is_bbox_intersecting_helper(bb, other_bb['maxx'], other_bb['miny']) or \
+            self.is_bbox_intersecting_helper(bb, other_bb['maxx'], other_bb['maxy'])
+
+    def needs_merging(self):
+        for g in self._gestures:
+            for other in self._gestures:
+                if g == other:
+                    continue
+                if self.is_bbox_intersecting(g.bbox, other.bbox):
+                    return (g, other)
+        return None
+
     def on_touch_up(self, touch):
         if touch.grab_current is not self:
             return
@@ -397,12 +351,23 @@ class GestureSurface(FloatLayout):
         g = self.get_gesture(touch)
         g.complete_stroke()
 
-        # If this stroke hit the maximum limit, dispatch immediately
-        if not g.accept_stroke():
-            self._complete_dispatcher(0)
+        while True:
+            val = self.needs_merging()
+            if (val is None):
+                break
+            (a, b) = val
+            merged = self.merge_gestures(a, b)
+            if self.draw_bbox:
+                self._update_canvas_bbox(merged)
+
+            gest = self._gestures
+            for idx, g in enumerate(gest):
+                # Gesture is part of another gesture, just delete it
+                if g.was_merged:
+                    del gest[idx]
 
         # dispatch later only if we have a window
-        elif self.temporal_window > 0:
+        if self.temporal_window > 0:
             Clock.schedule_once(self._complete_dispatcher,
                                     self.temporal_window)
 
@@ -416,7 +381,7 @@ class GestureSurface(FloatLayout):
         if self.use_random_color:
             col = hsv_to_rgb(random(), 1., 1.)
 
-        g = GestureContainer(touch, max_strokes=self.max_strokes, color=col)
+        g = GestureContainer(touch, color=col)
 
         # Create the bounding box Rectangle for the gesture
         if self.draw_bbox:
@@ -461,26 +426,9 @@ class GestureSurface(FloatLayout):
     def get_gesture(self, touch):
         '''Returns GestureContainer associated with given touch'''
         for g in self._gestures:
-            if g.active and g.handles(touch):
+            if g.handles(touch):
                 return g
         raise Exception('get_gesture() failed to identify ' + str(touch.uid))
-
-    def find_colliding_gesture(self, touch):
-        '''Checks if a touch x/y collides with the bounding box of an existing
-        gesture. If so, return it (otherwise returns None)
-        '''
-        touch_x, touch_y = touch.pos
-        for g in self._gestures:
-            if g.active and not g.handles(touch) and g.accept_stroke():
-                bb = g.bbox
-                margin = self.bbox_margin
-                minx = bb['minx'] - margin
-                miny = bb['miny'] - margin
-                maxx = bb['maxx'] + margin
-                maxy = bb['maxy'] + margin
-                if minx <= touch_x <= maxx and miny <= touch_y <= maxy:
-                    return g
-        return None
 
     def merge_gestures(self, g, other):
         '''Merges two gestures together, the oldest one is retained and the
@@ -527,6 +475,7 @@ class GestureSurface(FloatLayout):
         b.was_merged = True
         a.active_strokes += b.active_strokes
         a._update_time = Clock.get_time()
+        a.active = True
         return a
 
     def _update_canvas_bbox(self, g):
@@ -553,23 +502,17 @@ class GestureSurface(FloatLayout):
         twin = self.temporal_window
         get_time = Clock.get_time
 
-        for idx, g in enumerate(gest):
-            # Gesture is part of another gesture, just delete it
-            if g.was_merged:
-                del gest[idx]
-                continue
-
-            # Not active == already handled, or has active strokes (it cannot
-            # possibly be complete). Proceed to next gesture on surface.
+        for g in self._gestures:
+            # No need for handling.
             if not g.active or g.active_strokes != 0:
                 continue
 
             t1 = g._update_time + twin
             t2 = get_time() + UNDERSHOOT_MARGIN
 
-            # max_strokes reached, or temporal window has expired. The gesture
+            # temporal window has expired. The gesture
             # is complete; need to dispatch _complete or _discard event.
-            if not g.accept_stroke() or t1 <= t2:
+            if t1 <= t2:
                 discard = False
                 if g.width < 5 and g.height < 5:
                     discard = True
@@ -604,15 +547,6 @@ class GestureSurface(FloatLayout):
                 rg(g.id)
                 del gestures[idx]
                 self.dispatch('on_gesture_cleanup', g)
-
-    def on_gesture_start(self, *l):
-        pass
-
-    def on_gesture_extend(self, *l):
-        pass
-
-    def on_gesture_merge(self, *l):
-        pass
 
     def on_gesture_complete(self, *l):
         pass
