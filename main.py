@@ -42,14 +42,18 @@ from kivy.uix.popup import Popup
 from kivy.uix.scatter import ScatterPlane
 from kivy.graphics import Ellipse, Color, Line
 from kivy.properties import StringProperty, BooleanProperty, ListProperty, ObjectProperty
+from kivy.utils import platform
 
 # Other external libraries
 import numpy as np
 import fluidsynth
-import pyaudio
 import wave
 import pickle
 import copy
+# TODO: mobile support for recording, transcription
+is_desktop = platform in ('windows', 'macosx', 'linux')
+if is_desktop:
+    import pyaudio
 
 from dollarpy import Recognizer, Template, Point
 
@@ -59,7 +63,8 @@ from gesturedatabase import GestureDatabase
 from settings import MultistrokeSettingsContainer
 import util
 import math
-import transcribe
+if is_desktop:
+    import transcribe
 
 WHITE = (1, 1, 1, 1)
 BLACK = (0, 0, 0, 1)
@@ -428,6 +433,7 @@ class MultistrokeApp(App):
         commands = ['play', 'loop', 'stop']
         return name in commands
 
+    # TODO: stop playback immediately
     def stop(self):
         self.shouldLoop = False
 
@@ -444,25 +450,22 @@ class MultistrokeApp(App):
                 return
             self.loop()
 
-        t = self.playback()
+        t = int(self.playback())
         callbackID = self.seq.register_client(
             name="loop_callback",
             callback=loop_callback,
         )
 
-        # Pause in between loops
-        t += 1000
-        self.seq.timer(int(t), dest=callbackID, absolute=False)
+        self.seq.timer(t, dest=callbackID, absolute=False)
 
     def playback(self):
-        t = 0
         stave_times = [0, 0]
         for note in self.notes:
             t_duration = self.beats_to_ticks(note.duration)
             if note.pitch > 0:
-                self.seq.note_on(time=int(stave_times[note.staff]), absolute=False, channel=0, key=note.pitch, dest=self.synthID, velocity=80)
+                self.seq.note_on(time=int(stave_times[note.staff]), absolute=False, channel=0, key=note.pitch, dest=self.synthID, velocity=127)
             stave_times[note.staff] += t_duration
-        return t
+        return max(stave_times)
 
     def save_to_file(self, path):
         gesture_vec = []
@@ -578,6 +581,9 @@ class MultistrokeApp(App):
 
     # TODO: we're edging into callback hell here, so maybe it's time to bust out async/await.
     def record(self, callback, save=False):
+        if not is_desktop:
+            callback(np.zeros(44100 * 2), 44100)
+            return
         sr = 44100
         data = np.zeros(int(60 / self.tempo * sr * 4), dtype=np.int)
         record_thread = threading.Thread(target=self.record_helper, args=(sr, data, save))
@@ -647,8 +653,6 @@ class MultistrokeApp(App):
             f.close()
             print(f'saved recording to {outfile}.')
 
-        self.surface.canvas.remove_group("indicators")
-
     def calculate_x_start(self):
         if len(self.notes) == 0:
             return 20
@@ -668,37 +672,39 @@ class MultistrokeApp(App):
         self.record(self.transcribe_melody)
 
     def transcribe_rhythm(self, audio, sr):
-        rhythm = list(transcribe.extract_rhythm(audio, sr, self.tempo, verbose=self.debug))
-        print('rhythm', rhythm)
-        # HACK for prototype demo
-        melody = []
-        for (start, end) in zip(rhythm, rhythm[1:] + [4]):
-            melody.append((start, end - start, 64))
-        print(melody)
-        group_id = self.generate_group_id()
-        xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
-        notes = [Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)]
+        if is_desktop:
+            rhythm = list(transcribe.extract_rhythm(audio, sr, self.tempo, verbose=self.debug))
+            print('rhythm', rhythm)
+            # HACK for prototype demo
+            melody = []
+            for (start, end) in zip(rhythm, rhythm[1:] + [4]):
+                melody.append((start, end - start, 64))
+            print(melody)
+            group_id = self.generate_group_id()
+            xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
+            notes = [Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)]
 
-        self.notes += notes
-        self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
+            self.notes += notes
+            self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
 
     def transcribe_melody(self, audio, sr):
-        melody = transcribe.extract_melody(audio, sr, self.tempo, verbose=self.debug)
-        # For the demo, we're going to keep this in the treble clef: say, in a range of 62 to 79.
-        # TODO: draw ledger lines
-        def get_in_range(p):
-            p = (p - 62) % 24
-            if p > 79 - 62:
-                p %= 12
-            return p + 62
-        melody = [(s, v, get_in_range(p) if p else 0) for s, v, p in melody]
-        print(melody)
-        group_id = self.generate_group_id()
-        xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
-        notes = [Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)]
-        self.notes += notes
-        self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
-        print('melody', melody)
+        if is_desktop:
+            melody = transcribe.extract_melody(audio, sr, self.tempo, verbose=self.debug)
+            # For the demo, we're going to keep this in the treble clef: say, in a range of 62 to 79.
+            # TODO: draw ledger lines
+            def get_in_range(p):
+                p = (p - 62) % 24
+                if p > 79 - 62:
+                    p %= 12
+                return p + 62
+            melody = [(s, v, get_in_range(p) if p else 0) for s, v, p in melody]
+            print(melody)
+            group_id = self.generate_group_id()
+            xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
+            notes = [Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)]
+            self.notes += notes
+            self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
+            print('melody', melody)
 
     def beats_to_ticks(self, beats):
         ticks = self.time_scale / (self.tempo / 60) * beats
@@ -707,21 +713,32 @@ class MultistrokeApp(App):
         return int(round(ticks))
 
     def build(self):
+
         self.time_scale = 1000
         self.tempo = 120  # bpm
-        self.audio = pyaudio.PyAudio()
+        if is_desktop:
+            self.audio = pyaudio.PyAudio()
         self.notes = []
         self.seq = fluidsynth.Sequencer(time_scale=self.time_scale)
         self.fs = fluidsynth.Synth()
-        self.debug = True
+        self.debug = False
 
-        sfid = None
-        if sys.platform == "darwin":
-            self.fs.start('coreaudio')
-            sfid = self.fs.sfload("/Library/Audio/Sounds/Banks/FluidR3_GM.sf2")
-        else:
+        if platform == "linux":
             self.fs.start('alsa')
             sfid = self.fs.sfload("/usr/share/sounds/sf2/FluidR3_GM.sf2")
+        elif platform == "macosx":
+            self.fs.start('coreaudio')
+            sfid = self.fs.sfload("/Library/Audio/Sounds/Banks/FluidR3_GM.sf2")
+        elif platform == "android":
+            self.fs.start('oboe')
+            # This assumes you have FluidR3_GM.sf2 in the project directory when running buildozer.
+            # (And that the soundfont actually made it into the Android package.)
+            sfid = self.fs.sfload("FluidR3_GM.sf2")
+        else:
+            exit('Unsupported platform', platform)
+
+        if sfid < 0:
+            exit("Couldn't load soundfont.")
 
         self.fs.program_select(0, sfid, 0, 0)
         self.synthID = self.seq.register_fluidsynth(self.fs)
