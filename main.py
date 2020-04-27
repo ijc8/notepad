@@ -7,7 +7,6 @@ import itertools
 from kivy.core.window import Window
 from kivy.app import App
 from kivy.uix.button import Button
-from kivy.uix.togglebutton import ToggleButton
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.boxlayout import BoxLayout
 from gesturesurface import GestureSurface
@@ -87,16 +86,6 @@ class NotePadSavePopup(Popup):
 
 class NotePadLoadPopup(Popup):
     pass
-
-
-class IconButton(Button):
-    image = StringProperty()
-    image_color = ListProperty([0, 0, 0, 1])
-
-
-class ToggleIconButton(ToggleButton):
-    image = StringProperty()
-    image_color = ListProperty([0, 0, 0, 1])
 
 
 class NotePadSurface(GestureSurface):
@@ -268,7 +257,7 @@ class Note:
         return f"Note({self.pitch}, {self.duration}, {self.x}, {self.staff})"
 
 
-class NotepadApp(App):
+class NotePadApp(App):
     debug = BooleanProperty(False)
 
     def goto_database_screen(self, *l):
@@ -512,8 +501,8 @@ class NotepadApp(App):
             self.info_popup.open()
             return
 
-        if not path.lower().endswith(".ntp"):
-            path += ".ntp"
+        if not path.lower().endswith(".np"):
+            path += ".np"
 
         if not path.lower().startswith("saved/"):
             path = "saved/" + path
@@ -777,7 +766,6 @@ class NotepadApp(App):
         return int(round(ticks))
 
     def build(self):
-
         self.time_scale = 1000
         self.tempo = 120  # bpm
         if is_desktop:
@@ -899,4 +887,4 @@ class NotepadApp(App):
 
 
 if __name__ in ("__main__", "__android__"):
-    NotepadApp().run()
+    NotePadApp().run()

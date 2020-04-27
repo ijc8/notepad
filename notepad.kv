@@ -42,6 +42,7 @@
             if self.state == 'normal': self.state = 'down'
 
 <TutorialEntry>:
+    name: "default"
     size_hint_x: None
     width: 300
     orientation: 'horizontal'
@@ -115,7 +116,9 @@
             pos: self.pos
             size: self.size
 
-<IconButton@Button>
+<IconButton@Button>:
+    image: ""
+    image_color: [0, 0, 0, 1]
     Image:
         color: root.image_color
         pos: root.pos
@@ -125,13 +128,7 @@
 
 # can we reduce duplication with IconButton?
 # maybe do this with Behaviors instead?
-<ToggleIconButton@Button>
-    Image:
-        color: root.image_color
-        pos: root.pos
-        source: root.image
-        size: root.size
-        allow_stretch: True
+<ToggleIconButton@ToggleButtonBehavior+IconButton>:
 
 # TODO: tooltips, better icon sizes
 <ToolBar@BoxLayout>:
@@ -174,10 +171,12 @@
         image: 'icons/stop.png'
         image_color: (1, 0, 0, 1)
         on_press: app.stop()
-    # TODO: Look and behave like a toggle
-    IconButton:
+    # TODO: not clear if this should start playback itself, or just modify the behavior of play.
+    ToggleIconButton:
         image: 'icons/loop.png'
-        on_press: app.loop()
+        on_press:
+            if self.state == 'down': app.loop()
+            if self.state == 'normal': app.stop()
     IconButton:
         image: 'icons/voice_record.png'
         image_color: (0.9, 0.2, 0.2, 1)
@@ -377,5 +376,5 @@
         id: filechooser
         size_hint: None, None
         size: 400, 380
-        filters: ['*.ntp']
-        path: os.getcwd() # os.getcwd() + '/saved/'
+        filters: ['*.np']
+        path: os.getcwd() + '/saved/'
