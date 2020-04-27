@@ -1,32 +1,7 @@
-'''
-Multistroke Recognition Database Demonstration
-==============================================
-
-This application records gestures and attempts to match them. You should
-see a black drawing surface with some buttons across the bottom. As you
-make a gesture on the drawing surface, the gesture will be added to
-the history and a match will be attempted. If you go to the history tab,
-name the gesture, and add it to the database, then similar gestures in the
-future will be recognized. You can load and save databases of gestures
-in .kg files.
-
-This demonstration code spans many files, with this being the primary file.
-The information pop-up ('No match') comes from the file helpers.py.
-The history pane is managed in the file historymanager.py and described
-in the file historymanager.kv. The database pane and storage is managed in
-the file gesturedatabase.py and the described in the file gesturedatabase.kv.
-The general logic of the sliders and buttons are in the file
-settings.py and described in settings.kv. but the actual settings pane is
-described in the file multistroke.kv and managed from this file.
-
-'''
 # Built-in modules
 import sys
 import threading
 import itertools
-
-# These are in terms of number of beats.
-durations = {'eighth': 1/2, 'quarter': 1, 'half': 2, 'whole': 4}
 
 # Kivy
 from kivy.core.window import Window
@@ -41,7 +16,12 @@ from kivy.uix.label import Label
 from kivy.uix.popup import Popup
 from kivy.uix.scatter import ScatterPlane
 from kivy.graphics import Ellipse, Color, Line
-from kivy.properties import StringProperty, BooleanProperty, ListProperty, ObjectProperty
+from kivy.properties import (
+    StringProperty,
+    BooleanProperty,
+    ListProperty,
+    ObjectProperty,
+)
 from kivy.utils import platform
 
 # Other external libraries
@@ -50,8 +30,9 @@ import fluidsynth
 import wave
 import pickle
 import copy
+
 # TODO: mobile support for recording, transcription
-is_desktop = platform in ('windows', 'macosx', 'linux')
+is_desktop = platform in ("windows", "macosx", "linux")
 if is_desktop:
     import pyaudio
 
@@ -63,8 +44,14 @@ from gesturedatabase import GestureDatabase
 from settings import MultistrokeSettingsContainer
 import util
 import math
+
 if is_desktop:
     import transcribe
+
+
+# These are in terms of number of beats.
+durations = {"eighth": 1 / 2, "quarter": 1, "half": 2, "whole": 4}
+
 
 WHITE = (1, 1, 1, 1)
 BLACK = (0, 0, 0, 1)
@@ -73,6 +60,7 @@ RED = (1, 0, 0, 1)
 
 from helpers import InformationPopup
 
+
 class MainMenu(GridLayout):
     pass
 
@@ -80,17 +68,22 @@ class MainMenu(GridLayout):
 class MultistrokeAppSettings(MultistrokeSettingsContainer):
     pass
 
+
 class TutorialEntry(BoxLayout):
-    name = StringProperty('default')
+    name = StringProperty("default")
+
 
 class Tutorial(BoxLayout):
     pass
 
+
 class NotePadScreen(Screen):
     pass
 
+
 class NotePadSavePopup(Popup):
     pass
+
 
 class NotePadLoadPopup(Popup):
     pass
@@ -110,7 +103,7 @@ class NotePadSurface(GestureSurface):
     def on_kv_post(self, base_widget):
         super().on_kv_post(base_widget)
 
-        self.mode = 'write'  # other options are 'erase', 'pan'
+        self.mode = "write"  # other options are 'erase', 'pan'
         # Draw lines here, because self.size isn't set yet in __init__().
         self.lines = []
         self.staff_spacing = self.size[1] / 12
@@ -131,30 +124,34 @@ class NotePadSurface(GestureSurface):
         self.height_min = np.min(heights)
 
     def get_height(self, staff_number, line_number):
-        return self.size[1] - self.staff_spacing * (staff_number + 1) - self.line_spacing * (line_number - 2)
+        return (
+            self.size[1]
+            - self.staff_spacing * (staff_number + 1)
+            - self.line_spacing * (line_number - 2)
+        )
 
     def get_points(self, staff_number, line_number):
         height = self.get_height(staff_number, line_number)
         return [0, height, self.size[0], height]
 
     def on_touch_down(self, touch):
-        if self.mode == 'pan':
+        if self.mode == "pan":
             return False  # let ScatterPlane handle it
-        elif self.mode == 'erase':
+        elif self.mode == "erase":
             return True  # for now, eat the event and do nothing
         return super().on_touch_down(touch)
 
     def on_touch_move(self, touch):
-        if self.mode == 'pan':
+        if self.mode == "pan":
             return False  # let ScatterPlane handle it
-        elif self.mode == 'erase':
+        elif self.mode == "erase":
             return True  # for now, eat the event and do nothing
         return super().on_touch_move(touch)
 
     def on_touch_up(self, touch):
-        if self.mode == 'pan':
+        if self.mode == "pan":
             return False  # let ScatterPlane handle it
-        elif self.mode == 'erase':
+        elif self.mode == "erase":
             return True  # for now, eat the event and do nothing
         return super().on_touch_up(touch)
 
@@ -164,7 +161,7 @@ class NotePadSurface(GestureSurface):
         gesture = []
         for name, duration in durations.items():
             if duration == value:
-                filename = name + ('note' if pitch else 'rest')
+                filename = name + ("note" if pitch else "rest")
                 with open("ink/" + filename, "rb") as data_file:
                     gesture = pickle.load(data_file)
                 return gesture
@@ -199,18 +196,30 @@ class NotePadSurface(GestureSurface):
             #           2.5 -> 2 + 1/2
             #             3 -> 2 + 1
             #           3.5 -> 2 + 1 + 1/2
-            hack_map = {1.5: (1, 1/2),
-                        2.5: (2, 1/2),
-                        3.0: (2, 1),
-                        3.5: (2, 1, 1/2)}
+            hack_map = {
+                1.5: (1, 1 / 2),
+                2.5: (2, 1 / 2),
+                3.0: (2, 1),
+                3.5: (2, 1, 1 / 2),
+            }
             values = hack_map[value]
             last_point = None
             for value in values:
-                next_point = (x_start + 25, self.get_y_from_pitch(staff_number, pitch) - 20)
-                x_start = self.draw_note(staff_number, x_start, (None, value, pitch), group_id)
+                next_point = (
+                    x_start + 25,
+                    self.get_y_from_pitch(staff_number, pitch) - 20,
+                )
+                x_start = self.draw_note(
+                    staff_number, x_start, (None, value, pitch), group_id
+                )
                 if last_point and pitch > 0:
                     with self.canvas:
-                        Line(rgba=BLACK, points=last_point + next_point, width=self.line_width, group=group_id)
+                        Line(
+                            rgba=BLACK,
+                            points=last_point + next_point,
+                            width=self.line_width,
+                            group=group_id,
+                        )
                 last_point = next_point
             return x_start
 
@@ -227,6 +236,7 @@ class NotePadSurface(GestureSurface):
             Line(points=points.flat, group=group_id, width=self.line_width)
 
         return new_center_x + note_padding
+
 
 class NotePadContainer(ScatterPlane):
     # Don't steal events from the menu above this...
@@ -255,17 +265,18 @@ class Note:
         self.staff = staff
 
     def __repr__(self):
-        return f'Note({self.pitch}, {self.duration}, {self.x}, {self.staff})'
+        return f"Note({self.pitch}, {self.duration}, {self.x}, {self.staff})"
 
-class MultistrokeApp(App):
+
+class NotepadApp(App):
     debug = BooleanProperty(False)
 
     def goto_database_screen(self, *l):
         self.database.import_gdb()
-        self.manager.current = 'database'
+        self.manager.current = "database"
 
     def handle_gesture_cleanup(self, surface, g, *l):
-        if hasattr(g, '_result_label'):
+        if hasattr(g, "_result_label"):
             surface.remove_widget(g._result_label)
 
     def handle_gesture_discard(self, surface, g, *l):
@@ -273,9 +284,13 @@ class MultistrokeApp(App):
         if surface.draw_timeout == 0:
             return
 
-        text = '[b]Discarded:[/b] Not enough input'
-        g._result_label = Label(text=text, markup=True, size_hint=(None, None),
-                                center=(g.bbox['minx'], g.bbox['miny']))
+        text = "[b]Discarded:[/b] Not enough input"
+        g._result_label = Label(
+            text=text,
+            markup=True,
+            size_hint=(None, None),
+            center=(g.bbox["minx"], g.bbox["miny"]),
+        )
         self.surface.add_widget(g._result_label)
 
     def set_color_rgba(self, gesture_id, rgba):
@@ -286,7 +301,8 @@ class MultistrokeApp(App):
 
     def handle_gesture_complete(self, surface, g, *l):
         dollarResult = self.recognizer.recognize(
-            util.convert_to_dollar(g.get_vectors()))
+            util.convert_to_dollar(g.get_vectors())
+        )
 
         result = util.ResultWrapper(dollarResult)
 
@@ -300,18 +316,14 @@ class MultistrokeApp(App):
         gesture_vec = []
         for line in group:
             if isinstance(line, Line):
-                gesture_vec.append(
-                    (group_id, line.points)
-                )
+                gesture_vec.append((group_id, line.points))
         self.undo_history.append((gesture_vec, notes))
 
     def add_to_history_for_undo_redo(self, gestures, notes):
         self.redo_history = []
         gesture_vec = []
         for gesture in gestures:
-            gesture_vec.append(
-                (gesture.id, gesture.get_vectors())
-            )
+            gesture_vec.append((gesture.id, gesture.get_vectors()))
         self.undo_history.append((gesture_vec, notes))
 
     def handle_recognize_complete(self, result, *l):
@@ -324,11 +336,11 @@ class MultistrokeApp(App):
         best = result.best
         g = result._gesture_obj
 
-        recognized_name = best['name']
-        if self.is_unrecognized_gesture(best['name'], g):
+        recognized_name = best["name"]
+        if self.is_unrecognized_gesture(best["name"], g):
             # No match or ignored. Leave it onscreen in case it's for the user's benefit.
             self.set_color_rgba(g.id, RED)
-            recognized_name = 'Not Recognized'
+            recognized_name = "Not Recognized"
             g._cleanup_time = -1
 
             # For saving inks
@@ -339,17 +351,21 @@ class MultistrokeApp(App):
 
             self.add_to_history_for_undo_redo([g], [])
 
-        text = '[b]%s[/b]' % (recognized_name)
+        text = "[b]%s[/b]" % (recognized_name)
 
-        text = f'[color=#000000]{text}[/color]'
-        g._result_label = Label(text=text, markup=True, size_hint=(None, None),
-                                center=(g.bbox['minx'], g.bbox['miny']))
+        text = f"[color=#000000]{text}[/color]"
+        g._result_label = Label(
+            text=text,
+            markup=True,
+            size_hint=(None, None),
+            center=(g.bbox["minx"], g.bbox["miny"]),
+        )
 
-        if recognized_name == 'trebleclef' or recognized_name == 'barline':
+        if recognized_name == "trebleclef" or recognized_name == "barline":
             self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
             self.add_to_history_for_undo_redo([g], [])
-        elif recognized_name.endswith('note'):
+        elif recognized_name.endswith("note"):
             points = np.array(sum(g.get_vectors(), []))
 
             # For saving inks
@@ -375,7 +391,10 @@ class MultistrokeApp(App):
             lines = range(0, 9)
             staves = [0, 1]
             product = itertools.product(staves, lines)
-            staff, line = min(product, key=lambda p: np.abs(self.surface.get_height(p[0], p[1] / 2) - y))
+            staff, line = min(
+                product,
+                key=lambda p: np.abs(self.surface.get_height(p[0], p[1] / 2) - y),
+            )
             pitch = pitches[line]
             note = Note(pitch, durations[recognized_name[:-4]], x, staff)
             print(note)
@@ -386,7 +405,7 @@ class MultistrokeApp(App):
             self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
             self.add_to_history_for_undo_redo([g], [note])
-        elif recognized_name.endswith('rest'):
+        elif recognized_name.endswith("rest"):
             points = np.array(sum(g.get_vectors(), []))
 
             # For saving inks
@@ -394,7 +413,9 @@ class MultistrokeApp(App):
             #    pickle.dump(g.get_vectors(), data_file)
             x, y = points.mean(axis=0)
             staves = [0, 1]
-            staff = min(staves, key=lambda s: np.abs(self.surface.get_height(s, 4.5) - y))
+            staff = min(
+                staves, key=lambda s: np.abs(self.surface.get_height(s, 4.5) - y)
+            )
             note = Note(0, durations[recognized_name[:-4]], x, staff)
             print(note)
             self.notes.append(note)
@@ -419,18 +440,18 @@ class MultistrokeApp(App):
         return False
 
     def too_far_away_from_staff(self, gesture):
-        miny = gesture.bbox['miny']
-        maxy = gesture.bbox['maxy']
+        miny = gesture.bbox["miny"]
+        maxy = gesture.bbox["maxy"]
 
         dist = np.inf
         for y in [miny, maxy]:
             for staff_y in [self.surface.height_min, self.surface.height_max]:
-                dist = min(dist, abs(y-staff_y))
+                dist = min(dist, abs(y - staff_y))
 
-        return ((self.surface.size[1] / 22) < dist)
+        return (self.surface.size[1] / 22) < dist
 
     def is_command_gesture(self, name):
-        commands = ['play', 'loop', 'stop']
+        commands = ["play", "loop", "stop"]
         return name in commands
 
     # TODO: stop playback immediately
@@ -452,8 +473,7 @@ class MultistrokeApp(App):
 
         t = int(self.playback())
         callbackID = self.seq.register_client(
-            name="loop_callback",
-            callback=loop_callback,
+            name="loop_callback", callback=loop_callback,
         )
 
         self.seq.timer(t, dest=callbackID, absolute=False)
@@ -463,7 +483,14 @@ class MultistrokeApp(App):
         for note in self.notes:
             t_duration = self.beats_to_ticks(note.duration)
             if note.pitch > 0:
-                self.seq.note_on(time=int(stave_times[note.staff]), absolute=False, channel=0, key=note.pitch, dest=self.synthID, velocity=127)
+                self.seq.note_on(
+                    time=int(stave_times[note.staff]),
+                    absolute=False,
+                    channel=0,
+                    key=note.pitch,
+                    dest=self.synthID,
+                    velocity=127,
+                )
             stave_times[note.staff] += t_duration
         return max(stave_times)
 
@@ -471,9 +498,7 @@ class MultistrokeApp(App):
         gesture_vec = []
 
         for gesture in self.surface._gestures:
-            gesture_vec.append(
-                (gesture.id, gesture.get_vectors())
-            )
+            gesture_vec.append((gesture.id, gesture.get_vectors()))
 
         with open(path, "wb") as data_file:
             pickle.dump(gesture_vec, data_file)
@@ -483,28 +508,27 @@ class MultistrokeApp(App):
         path = self.save_popup.ids.filename.text
         if not path:
             self.save_popup.dismiss()
-            self.info_popup.text = 'Missing filename'
+            self.info_popup.text = "Missing filename"
             self.info_popup.open()
             return
 
-        if not path.lower().endswith('.ntp'):
-            path += '.ntp'
+        if not path.lower().endswith(".ntp"):
+            path += ".ntp"
 
-        if not path.lower().startswith('saved/'):
-            path = 'saved/' + path
+        if not path.lower().startswith("saved/"):
+            path = "saved/" + path
 
         self.save_to_file(path)
 
         self.save_popup.dismiss()
-        self.info_popup.text = 'Saved to a file'
+        self.info_popup.text = "Saved to a file"
         self.info_popup.open()
         self.load_popup.ids.filechooser._update_files()
-
 
     def load(self, filechooser, *l):
         for f in filechooser.selection:
             self.load_from_file(filename=f)
-        self.info_popup.text = 'Loaded file'
+        self.info_popup.text = "Loaded file"
         self.load_popup.dismiss()
         self.info_popup.open()
 
@@ -575,9 +599,19 @@ class MultistrokeApp(App):
     def update_record_signifiers(self, idx):
         idx -= 1  # fluidsynth scheduler workaround
         if idx < 4:
-            self.surface_screen.canvas.after.get_group('recording')[idx].rgba = (1, 0.5, 0.5, 0.7)
+            self.surface_screen.canvas.after.get_group("recording")[idx].rgba = (
+                1,
+                0.5,
+                0.5,
+                0.7,
+            )
         else:
-            self.surface_screen.canvas.after.get_group('recording')[idx].rgba = (0.9, 0.2, 0.2, 1)
+            self.surface_screen.canvas.after.get_group("recording")[idx].rgba = (
+                0.9,
+                0.2,
+                0.2,
+                1,
+            )
 
     # TODO: we're edging into callback hell here, so maybe it's time to bust out async/await.
     def record(self, callback, save=False):
@@ -586,33 +620,50 @@ class MultistrokeApp(App):
             return
         sr = 44100
         data = np.zeros(int(60 / self.tempo * sr * 4), dtype=np.int)
-        record_thread = threading.Thread(target=self.record_helper, args=(sr, data, save))
+        record_thread = threading.Thread(
+            target=self.record_helper, args=(sr, data, save)
+        )
         record_thread.start()
 
         # Play four beeps to indicate tempo and key.
         for i in range(5):
-            self.surface_screen.canvas.after.get_group('recording')[i].rgba = (0.8, 0.7, 0.7, 0.3)
+            self.surface_screen.canvas.after.get_group("recording")[i].rgba = (
+                0.8,
+                0.7,
+                0.7,
+                0.3,
+            )
             time = self.beats_to_ticks(i + 1)
             # Bizarrely, this cannot accept the value 0 (it's replaced by None).
             update_callback = self.seq.register_client(
                 name=f"record_update_callback",
-                callback=lambda a, b, c, idx: print('hmm', a, b, c, idx) or self.update_record_signifiers(idx),
+                callback=lambda a, b, c, idx: print("hmm", a, b, c, idx)
+                or self.update_record_signifiers(idx),
                 data=i + 1,
             )
             self.seq.timer(time=time, dest=update_callback, absolute=False)
             if i < 5:
-                self.seq.note_on(time=time, absolute=False, channel=0, key=60, dest=self.synthID, velocity=80)
+                self.seq.note_on(
+                    time=time,
+                    absolute=False,
+                    channel=0,
+                    key=60,
+                    dest=self.synthID,
+                    velocity=80,
+                )
 
         def reset_record_signifiers(*_):
             record_thread.join()
-            for color in self.surface_screen.canvas.after.get_group('recording'):
+            for color in self.surface_screen.canvas.after.get_group("recording"):
                 color.a = 0
             callback(data, sr)
 
         finish_callback = self.seq.register_client(
-            name="record_finish_callback",
-            callback=reset_record_signifiers)
-        self.seq.timer(time=self.beats_to_ticks(9), dest=finish_callback, absolute=False)
+            name="record_finish_callback", callback=reset_record_signifiers
+        )
+        self.seq.timer(
+            time=self.beats_to_ticks(9), dest=finish_callback, absolute=False
+        )
 
     def record_helper(self, sr, out, save):
         """Helper function. Plays one measure of beats and then records one measure of audio."""
@@ -621,10 +672,14 @@ class MultistrokeApp(App):
         # (10 beats to include the calibration measure + latency allowance on each side)
         length = 10 / (self.tempo / 60)  # seconds
         print("recording")
-        stream = self.audio.open(format=pyaudio.paInt16, channels=1,
-                                 rate=sr, input=True,
-                                 frames_per_buffer=frame_size)
-        print('latencies', stream.get_input_latency(), stream.get_output_latency())
+        stream = self.audio.open(
+            format=pyaudio.paInt16,
+            channels=1,
+            rate=sr,
+            input=True,
+            frames_per_buffer=frame_size,
+        )
+        print("latencies", stream.get_input_latency(), stream.get_output_latency())
         # for the moment we're assuming pyaudio's output latency is a good estimate of fluidsynth's...
         latency = stream.get_input_latency() + stream.get_output_latency()
 
@@ -636,22 +691,22 @@ class MultistrokeApp(App):
         stream.stop_stream()
         stream.close()
 
-        data = b''.join(frames)
+        data = b"".join(frames)
         data = np.frombuffer(data, dtype=np.int16).astype(np.int)
         # Throw out the first five beats plus latency, and the last beat.
         start = int(((60 / self.tempo) * 5 + latency) * sr)
         length = int(60 / self.tempo * sr * 4)
-        out[:] = data[start:start + length]
+        out[:] = data[start : start + length]
 
         if save:
-            outfile = 'recorded.wav'
-            f = wave.open(outfile, 'wb')
+            outfile = "recorded.wav"
+            f = wave.open(outfile, "wb")
             f.setnchannels(1)
             f.setsampwidth(2)
             f.setframerate(sr)
             f.writeframes(data.astype(np.int16).tobytes())
             f.close()
-            print(f'saved recording to {outfile}.')
+            print(f"saved recording to {outfile}.")
 
     def calculate_x_start(self):
         if len(self.notes) == 0:
@@ -663,7 +718,7 @@ class MultistrokeApp(App):
 
     def generate_group_id(self):
         self.group_id_counter += 1
-        return 'transcription group {}'.format(self.group_id_counter)
+        return "transcription group {}".format(self.group_id_counter)
 
     def record_rhythm(self):
         self.record(self.transcribe_rhythm)
@@ -673,8 +728,10 @@ class MultistrokeApp(App):
 
     def transcribe_rhythm(self, audio, sr):
         if is_desktop:
-            rhythm = list(transcribe.extract_rhythm(audio, sr, self.tempo, verbose=self.debug))
-            print('rhythm', rhythm)
+            rhythm = list(
+                transcribe.extract_rhythm(audio, sr, self.tempo, verbose=self.debug)
+            )
+            print("rhythm", rhythm)
             # HACK for prototype demo
             melody = []
             for (start, end) in zip(rhythm, rhythm[1:] + [4]):
@@ -682,14 +739,18 @@ class MultistrokeApp(App):
             print(melody)
             group_id = self.generate_group_id()
             xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
-            notes = [Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)]
+            notes = [
+                Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)
+            ]
 
             self.notes += notes
             self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
 
     def transcribe_melody(self, audio, sr):
         if is_desktop:
-            melody = transcribe.extract_melody(audio, sr, self.tempo, verbose=self.debug)
+            melody = transcribe.extract_melody(
+                audio, sr, self.tempo, verbose=self.debug
+            )
             # For the demo, we're going to keep this in the treble clef: say, in a range of 62 to 79.
             # TODO: draw ledger lines
             def get_in_range(p):
@@ -697,19 +758,22 @@ class MultistrokeApp(App):
                 if p > 79 - 62:
                     p %= 12
                 return p + 62
+
             melody = [(s, v, get_in_range(p) if p else 0) for s, v, p in melody]
             print(melody)
             group_id = self.generate_group_id()
             xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
-            notes = [Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)]
+            notes = [
+                Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)
+            ]
             self.notes += notes
             self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
-            print('melody', melody)
+            print("melody", melody)
 
     def beats_to_ticks(self, beats):
         ticks = self.time_scale / (self.tempo / 60) * beats
         # TODO: temp for debugging
-        assert(ticks == int(ticks), f'{beats} and {ticks}')
+        assert (ticks == int(ticks), f"{beats} and {ticks}")
         return int(round(ticks))
 
     def build(self):
@@ -724,18 +788,18 @@ class MultistrokeApp(App):
         self.debug = False
 
         if platform == "linux":
-            self.fs.start('alsa')
+            self.fs.start("alsa")
             sfid = self.fs.sfload("/usr/share/sounds/sf2/FluidR3_GM.sf2")
         elif platform == "macosx":
-            self.fs.start('coreaudio')
+            self.fs.start("coreaudio")
             sfid = self.fs.sfload("/Library/Audio/Sounds/Banks/FluidR3_GM.sf2")
         elif platform == "android":
-            self.fs.start('oboe')
+            self.fs.start("oboe")
             # This assumes you have FluidR3_GM.sf2 in the project directory when running buildozer.
             # (And that the soundfont actually made it into the Android package.)
             sfid = self.fs.sfload("FluidR3_GM.sf2")
         else:
-            exit('Unsupported platform', platform)
+            exit("Unsupported platform", platform)
 
         if sfid < 0:
             exit("Couldn't load soundfont.")
@@ -750,16 +814,15 @@ class MultistrokeApp(App):
 
         # Setting NoTransition breaks the "history" screen! Possibly related
         # to some inexplicable rendering bugs on my particular system
-        self.manager = ScreenManager(transition=SlideTransition(
-                                     duration=.15))
+        self.manager = ScreenManager(transition=SlideTransition(duration=0.15))
 
         self.recognizer = Recognizer([])
 
         # Setup the GestureSurface and bindings to our Recognizer
-        self.surface_screen = NotePadScreen(name='surface')
+        self.surface_screen = NotePadScreen(name="surface")
 
-        surface_container = self.surface_screen.ids['container']
-        self.surface = surface_container.ids['surface']
+        surface_container = self.surface_screen.ids["container"]
+        self.surface = surface_container.ids["surface"]
 
         self.surface.bind(on_gesture_discard=self.handle_gesture_discard)
         self.surface.bind(on_gesture_complete=self.handle_gesture_complete)
@@ -769,14 +832,14 @@ class MultistrokeApp(App):
 
         # History is the list of gestures drawn on the surface
         history = GestureHistoryManager()
-        history_screen = Screen(name='history')
+        history_screen = Screen(name="history")
         history_screen.add_widget(history)
         self.history = history
         self.manager.add_widget(history_screen)
 
         # Database is the list of gesture templates in Recognizer
         database = GestureDatabase(recognizer=self.recognizer)
-        database_screen = Screen(name='database')
+        database_screen = Screen(name="database")
         database_screen.add_widget(database)
         self.database = database
         self.manager.add_widget(database_screen)
@@ -785,29 +848,33 @@ class MultistrokeApp(App):
         app_settings = MultistrokeAppSettings()
         ids = app_settings.ids
 
-        ids.max_strokes.bind(value=self.surface.setter('max_strokes'))
-        ids.temporal_win.bind(value=self.surface.setter('temporal_window'))
-        ids.timeout.bind(value=self.surface.setter('draw_timeout'))
-        ids.line_width.bind(value=self.surface.setter('line_width'))
-        ids.draw_bbox.bind(value=self.surface.setter('draw_bbox'))
-        ids.use_random_color.bind(value=self.surface.setter('use_random_color'))
+        ids.max_strokes.bind(value=self.surface.setter("max_strokes"))
+        ids.temporal_win.bind(value=self.surface.setter("temporal_window"))
+        ids.timeout.bind(value=self.surface.setter("draw_timeout"))
+        ids.line_width.bind(value=self.surface.setter("line_width"))
+        ids.draw_bbox.bind(value=self.surface.setter("draw_bbox"))
+        ids.use_random_color.bind(value=self.surface.setter("use_random_color"))
 
-        settings_screen = Screen(name='settings')
+        settings_screen = Screen(name="settings")
         settings_screen.add_widget(app_settings)
         self.manager.add_widget(settings_screen)
 
         tutorial = Tutorial()
 
         for duration, value in list(durations.items())[::-1]:
-            for thing in ('note', 'rest'):
-                entry = TutorialEntry(name=f'{duration} {thing}')
+            for thing in ("note", "rest"):
+                entry = TutorialEntry(name=f"{duration} {thing}")
                 tutorial.ids.notegrid.add_widget(entry)
-                points = np.array(sum(self.surface.get_note_gesture(value, int(thing == 'note')), []))
+                points = np.array(
+                    sum(self.surface.get_note_gesture(value, int(thing == "note")), [])
+                )
                 # points = np.array([[p.x, p.y] for p in database.gdict[duration + thing][-1]])
-                points = util.align_note(points, (thing == 'note'), value, 15)
-                entry.ids.gesture.canvas.get_group('gesture')[0].points = list(points.flat)
+                points = util.align_note(points, (thing == "note"), value, 15)
+                entry.ids.gesture.canvas.get_group("gesture")[0].points = list(
+                    points.flat
+                )
 
-        tutorial_screen = Screen(name='tutorial')
+        tutorial_screen = Screen(name="tutorial")
         tutorial_screen.add_widget(tutorial)
         self.manager.add_widget(tutorial_screen)
 
@@ -817,8 +884,9 @@ class MultistrokeApp(App):
         layout.add_widget(MainMenu())
 
         def on_keyboard(instance, key, scancode, codepoint, modifiers):
-            if codepoint == 'd':
+            if codepoint == "d":
                 self.debug = not self.debug
+
         Window.bind(on_keyboard=on_keyboard)
 
         self.save_popup = NotePadSavePopup()
@@ -830,5 +898,5 @@ class MultistrokeApp(App):
         return layout
 
 
-if __name__ in ('__main__', '__android__'):
-    MultistrokeApp().run()
+if __name__ in ("__main__", "__android__"):
+    NotepadApp().run()
