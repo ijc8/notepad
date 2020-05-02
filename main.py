@@ -315,6 +315,11 @@ class NotePadApp(App):
             gesture_vec.append((gesture.id, gesture.get_vectors()))
         self.undo_history.append((gesture_vec, notes))
 
+    def populate_note(self, gesture, note):
+        self.gesture_to_note[gesture.id] = note
+        self.notes = list(filter(lambda x: x, self.gesture_to_note.values()))
+        self.notes.sort(key=lambda note: note.x)
+
     def handle_recognize_complete(self, result, *l):
         self.history.add_recognizer_result(result)
 
@@ -339,6 +344,7 @@ class NotePadApp(App):
             #    pickle.dump(g.get_vectors(), data_file)
 
             self.add_to_history_for_undo_redo([g], [])
+            self.populate_note(g, None)
 
         text = "[b]%s[/b]" % (recognized_name)
 
@@ -353,6 +359,7 @@ class NotePadApp(App):
         if recognized_name == "trebleclef" or recognized_name == "barline":
             self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
+            self.populate_note(g, None)
             self.add_to_history_for_undo_redo([g], [])
         elif recognized_name.endswith("note"):
             points = np.array(sum(g.get_vectors(), []))
@@ -390,8 +397,8 @@ class NotePadApp(App):
             note = Note(pitch, durations[recognized_name[:-4]], x, staff)
             print(note)
 
-            self.notes.append(note)
-            self.notes.sort(key=lambda note: note.x)
+            self.populate_note(g, note)
+
             # Hacky way to change note color to black once it's registered.
             self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
@@ -406,8 +413,9 @@ class NotePadApp(App):
             )
             note = Note(0, durations[recognized_name[:-4]], x, staff)
             print(note)
-            self.notes.append(note)
-            self.notes.sort(key=lambda note: note.x)
+
+
+            self.populate_note(g, note)
             # Hacky way to change rest color to black once it's registered.
             self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
@@ -532,6 +540,7 @@ class NotePadApp(App):
         self.undo_history = []
         self.redo_history = []
         self.notes = []
+        self.gesture_to_note = {}
         self.surface._gestures = []
         self.surface.canvas.clear()
 
@@ -725,6 +734,7 @@ class NotePadApp(App):
             Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)
         ]
 
+        # TODO(mergen): Fix this.
         self.notes += notes
         self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
 
@@ -766,6 +776,7 @@ class NotePadApp(App):
         if is_desktop:
             self.audio = pyaudio.PyAudio()
         self.notes = []
+        self.gesture_to_note = {}
         self.seq = fluidsynth.Sequencer(time_scale=self.time_scale)
         self.fs = fluidsynth.Synth()
         self.debug = False
