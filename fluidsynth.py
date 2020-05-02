@@ -738,6 +738,13 @@ delete_fluid_sequencer = cfunc(
     'delete_fluid_sequencer',
     None,
     ('seq', c_void_p, 1))
+fluid_sequencer_remove_events = cfunc(
+    'fluid_sequencer_remove_events',
+    None,
+    ('seq', c_void_p, 1),
+    ('source', c_short, 1),
+    ('dest', c_short, 1),
+    ('type', c_int, 1))
 
 # Fluid events
 new_fluid_event = cfunc(
@@ -1629,3 +1636,6 @@ class Sequencer:
 
     def delete(self):
         delete_fluid_sequencer(self.sequencer)
+
+    def remove_events(self, source=-1, dest=-1, type=-1):
+        fluid_sequencer_remove_events(self.sequencer, source, dest, type)

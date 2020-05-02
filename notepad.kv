@@ -164,13 +164,13 @@
     size_hint: (None, 3/4)
     width: self.height / 8
     IconButton:
-        image: 'icons/play.png'
+        image: 'icons/pause.png' if app.playing else 'icons/play.png'
         image_color: (0, 1, 0, 1)
         on_press: app.playback()
     IconButton:
         image: 'icons/stop.png'
         image_color: (1, 0, 0, 1)
-        on_press: app.stop_loop()
+        on_press: app.stop()
     # TODO: not clear if this should start playback itself, or just modify the behavior of play.
     ToggleIconButton:
         image: 'icons/loop.png'

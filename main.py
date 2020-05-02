@@ -268,6 +268,7 @@ class Note:
 
 class NotePadApp(App):
     debug = BooleanProperty(False)
+    playing = BooleanProperty(False)
 
     def goto_database_screen(self, *l):
         self.database.import_gdb()
@@ -488,7 +489,17 @@ class NotePadApp(App):
         self.seq.timer(t, dest=callbackID, absolute=False)
 
     # TODO: add pause functionality.
+    # should look like this but store position so we start playback in the right place later
+    def stop(self):
+        if self.playing:
+            self.seq.remove_events()
+            self.playing = False
+
     def playback(self):
+        # Don't double play. This will become redundant after we add pause.
+        if self.playing:
+            return
+        self.playing = True
         stave_times = [0, 0]
         for note in self.notes:
             t_duration = self.beats_to_ticks(note.duration)
@@ -531,7 +542,12 @@ class NotePadApp(App):
                             dest=self.synthID,
                         )
             stave_times[note.staff] += t_duration
-        return max(stave_times)
+
+        duration = max(stave_times)
+        def done_playing(*_): self.playing = False
+        done_playing_callback = self.seq.register_client(name=f"done_playng", callback=done_playing)
+        self.seq.timer(time=duration, dest=done_playing_callback, absolute=False)
+        return duration
 
     def save_to_file(self, path):
         gesture_vec = []
