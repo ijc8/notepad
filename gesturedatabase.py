@@ -95,7 +95,7 @@ class GestureDatabase(GridLayout):
 
         self.import_gdb()
 
-    def import_gesture(self, filename='model/dollarpy'):
+    def import_gesture(self, filename='model/notepad'):
         templates = []
         with open(filename, "rb") as data_file:
             templates = pickle.load(data_file)

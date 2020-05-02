@@ -51,6 +51,8 @@ if is_desktop:
 # These are in terms of number of beats.
 durations = {"eighth": 1 / 2, "quarter": 1, "half": 2, "whole": 4}
 
+instruments = {"piano": (0, 0), "guitar": (0, 25), "bass": (0, 35), "drum": (128, 0)}
+
 
 WHITE = (1, 1, 1, 1)
 BLACK = (0, 0, 0, 1)
@@ -356,11 +358,19 @@ class NotePadApp(App):
             center=(g.bbox["minx"], g.bbox["miny"]),
         )
 
+        instrument_prefix = "instrument-"
         if recognized_name == "trebleclef" or recognized_name == "barline":
             self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
             self.populate_note(g, None)
             self.add_to_history_for_undo_redo([g], [])
+        elif recognized_name.startswith(instrument_prefix):
+            instrument = recognized_name[len(instrument_prefix):]
+            points = np.array(sum(g.get_vectors(), []))
+            y = points[:,1].mean()
+            staff = min((0, 1), key=lambda s: np.abs(self.surface.get_height(s, 4) - y))
+            # TODO: add real Staff class instead of doing this ad-hoc stuff.
+            self.fs.program_select(staff, self.sfid, *instruments[instrument])
         elif recognized_name.endswith("note"):
             points = np.array(sum(g.get_vectors(), []))
 
@@ -783,23 +793,23 @@ class NotePadApp(App):
 
         if platform == "linux":
             self.fs.start("alsa")
-            sfid = self.fs.sfload("/usr/share/sounds/sf2/FluidR3_GM.sf2")
+            self.sfid = self.fs.sfload("/usr/share/sounds/sf2/FluidR3_GM.sf2")
         elif platform == "macosx":
             self.fs.start("coreaudio")
-            sfid = self.fs.sfload("/Library/Audio/Sounds/Banks/FluidR3_GM.sf2")
+            self.sfid = self.fs.sfload("/Library/Audio/Sounds/Banks/FluidR3_GM.sf2")
         elif platform == "android":
             self.fs.start("oboe")
             # This assumes you have FluidR3_GM.sf2 in the project directory when running buildozer.
             # (And that the soundfont actually made it into the Android package.)
-            sfid = self.fs.sfload("FluidR3_GM.sf2")
+            self.sfid = self.fs.sfload("FluidR3_GM.sf2")
         else:
             exit("Unsupported platform", platform)
 
-        if sfid < 0:
+        if self.sfid < 0:
             exit("Couldn't load soundfont.")
 
-        self.fs.program_select(0, sfid, 0, 0)
-        self.fs.program_select(1, sfid, 0, 35)
+        self.fs.program_select(0, self.sfid, 0, 0)
+        self.fs.program_select(1, self.sfid, 0, 0)
         self.synthID = self.seq.register_fluidsynth(self.fs)
 
         self.undo_history = []
