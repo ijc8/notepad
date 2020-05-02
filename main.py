@@ -375,7 +375,9 @@ class NotePadApp(App):
             # end tmp
 
             x, y = points.mean(axis=0)
-            pitches = [64, 65, 67, 69, 71, 72, 74, 76, 77][::-1]
+            treble_pitches = [64, 65, 67, 69, 71, 72, 74, 76, 77][::-1]
+            bass_pitches = [43, 45, 47, 48, 50, 52, 53, 55, 57][::-1]
+            pitches_per_staff = [treble_pitches, bass_pitches]
             # TODO: don't do this the dumb way, and move this functionality to NotePadSurface
             lines = range(0, 9)
             staves = [0, 1]
@@ -384,7 +386,7 @@ class NotePadApp(App):
                 product,
                 key=lambda p: np.abs(self.surface.get_height(p[0], p[1] / 2) - y),
             )
-            pitch = pitches[line]
+            pitch = pitches_per_staff[staff][line]
             note = Note(pitch, durations[recognized_name[:-4]], x, staff)
             print(note)
 
@@ -459,10 +461,18 @@ class NotePadApp(App):
                 self.seq.note_on(
                     time=int(stave_times[note.staff]),
                     absolute=False,
-                    channel=0,
+                    channel=note.staff,
                     key=note.pitch,
                     dest=self.synthID,
                     velocity=127,
+                )
+                # NOTE: if notes are not legato (slurs, ties), we might want to leave a little gap between off and the next on.
+                self.seq.note_off(
+                    time=int(stave_times[note.staff] + t_duration),
+                    absolute=False,
+                    channel=note.staff,
+                    key=note.pitch,
+                    dest=self.synthID,
                 )
             stave_times[note.staff] += t_duration
         return max(stave_times)
@@ -778,6 +788,7 @@ class NotePadApp(App):
             exit("Couldn't load soundfont.")
 
         self.fs.program_select(0, sfid, 0, 0)
+        self.fs.program_select(1, sfid, 0, 35)
         self.synthID = self.seq.register_fluidsynth(self.fs)
 
         self.undo_history = []
