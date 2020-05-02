@@ -76,6 +76,7 @@ class GestureContainer(EventDispatcher):
     '''
     active = BooleanProperty(True)
     active_strokes = NumericProperty(0)
+    pending_merge = BooleanProperty(False)
     bbox = DictProperty({'minx': float('inf'), 'miny': float('inf'),
                          'maxx': float('-inf'), 'maxy': float('-inf')})
     width = NumericProperty(0)
@@ -97,6 +98,7 @@ class GestureContainer(EventDispatcher):
         self._cache_time = 0
         self.was_merged = False
         self.active = True
+        self.pending_merge = False
 
         # We can cache the candidate here to save zip()/Vector instantiation
         self._vectors = None
@@ -104,6 +106,7 @@ class GestureContainer(EventDispatcher):
         # Key is touch.uid; value is a kivy.graphics.Line(); it's used even
         # if line_width is 0 (i.e. not actually drawn anywhere)
         self._strokes = {}
+
 
         # Make sure the bbox is up to date with the first touch position
         self.update_bbox(touch)
@@ -310,7 +313,6 @@ class GestureSurface(FloatLayout):
         # Retrieve the GestureContainer object that handles this touch.
         g = self.get_gesture(touch)
         g.update_bbox(touch)
-
         # Add the new point to gesture stroke list and update the canvas line
         g._strokes[str(touch.uid)].points += (touch.x, touch.y)
 
@@ -318,6 +320,12 @@ class GestureSurface(FloatLayout):
         # does not trigger a move event, we would miss it otherwise.
         if self.draw_bbox:
             self._update_canvas_bbox(g)
+
+        for other in self._gestures:
+            if g == other:
+                continue
+            if self.is_bbox_intersecting(g.bbox, other.bbox):
+                other.pending_merge = True
         return True
 
     def is_bbox_intersecting_helper(self, bb, x, y):
@@ -476,6 +484,8 @@ class GestureSurface(FloatLayout):
         a.active_strokes += b.active_strokes
         a._update_time = Clock.get_time()
         a.active = True
+        a.pending_merge = False
+        b.pending_merge = False
         return a
 
     def _update_canvas_bbox(self, g):
@@ -504,7 +514,7 @@ class GestureSurface(FloatLayout):
 
         for g in self._gestures:
             # No need for handling.
-            if not g.active or g.active_strokes != 0:
+            if not g.active or g.active_strokes != 0 or g.pending_merge:
                 continue
 
             t1 = g._update_time + twin
