@@ -240,8 +240,21 @@
             group: 'recording'
             rgba: (1, 0, 0, 0)
         Ellipse:
+            group: 'recording-circle'
             pos: (self.width/2 - self.width/16 + self.width/16 * 5, self.height/2  - self.width/16)
             size: (self.width/8, self.width/8)
+        Color:
+            group: 'recording'
+            rgba: (1, 1, 1, 0)
+        PushMatrix:
+        Translate:
+            xy: (self.width/2 - self.width/16 + self.width/16 * 5, self.height/2  - self.width/16 + self.width/16)
+        Scale:
+            xyz: (self.width/8, self.width/16, 1)
+        Line:
+            group: 'recording-waveform'
+            points: []
+        PopMatrix
     NotePadContainer:
         id: container
     Button:

@@ -647,12 +647,13 @@ class NotePadApp(App):
                 0.7,
             )
         else:
-            self.surface_screen.canvas.after.get_group("recording")[idx].rgba = (
+            self.surface_screen.canvas.after.get_group("recording")[4].rgba = (
                 0.9,
                 0.2,
                 0.2,
                 1,
             )
+            self.surface_screen.canvas.after.get_group("recording")[5].a = 1
 
     # TODO: we're edging into callback hell here, so maybe it's time to bust out async/await.
     def record(self, callback, save=False):
@@ -727,6 +728,8 @@ class NotePadApp(App):
         frames = []
         for i in range(0, int(sr / frame_size * length)):
             data = stream.read(frame_size)
+            display_data = np.array([np.arange(frame_size) / frame_size, np.frombuffer(data, dtype=np.int16).astype(np.float) / np.iinfo(np.int16).max * np.hanning(frame_size)])
+            self.surface_screen.canvas.after.get_group("recording-waveform")[0].points = display_data.T.flat
             frames.append(data)
 
         stream.stop_stream()
@@ -944,6 +947,10 @@ class NotePadApp(App):
         self.save_popup.ids.save_btn.bind(on_press=self.save)
         self.load_popup.ids.filechooser.bind(on_submit=self.load)
         self.info_popup = InformationPopup()
+
+        with self.surface.canvas:
+            Color(1, 0, 0, 1)
+            self.plot = Line(points = [(x/88200 * 100, 100 * np.sin(x / 1000.) + 600) for x in range(0, 88200)])
 
         return layout
 
