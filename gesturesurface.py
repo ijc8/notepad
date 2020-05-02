@@ -175,6 +175,23 @@ class GestureContainer(EventDispatcher):
                 return False
         return True
 
+    def get_last_stroke(self):
+        stroke_uid = list(self._strokes.keys())[-1]
+        return (stroke_uid, self._strokes[stroke_uid])
+
+    def remove_stroke(self, stroke_uid):
+        self._update_time = Clock.get_time()
+        del self._strokes[stroke_uid]
+
+    def is_empty(self):
+        return len(self._strokes) == 0
+
+    def redraw(self):
+        col = self.color
+        for line in self._strokes.items():
+            canvas_add = self.canvas.add
+            canvas_add(Color(col[0], col[1], col[2], mode='rgb', group=self.id))
+            canvas_add(line)
 
 class GestureSurface(FloatLayout):
     '''Simple gesture surface to track/draw touch movements. Typically used
@@ -407,6 +424,28 @@ class GestureSurface(FloatLayout):
         self._gestures.append(g)
         return g
 
+    def remove(self, gesture_id, stroke_uid):
+        self.canvas.remove_group(gesture_id)
+        g = self.get_gesture_from_id(gesture_id)
+        g.remove_stroke(stroke_uid)
+
+        if g.is_empty():
+            for idx, other in enumerate(self._gestures):
+                if (other == g):
+                    del self._gestures[idx]
+                    self.dispatch('on_gesture_cleanup', g)
+            return True
+        else:
+            col = g.color
+            for (_, line) in g._strokes.items():
+                canvas_add = self.canvas.add
+                canvas_add(Color(col[0], col[1], col[2], mode='rgb', group=g.id))
+                canvas_add(line)
+
+            self.dispatch('on_gesture_complete', g)
+            Clock.schedule_once(self._cleanup, self.draw_timeout)
+            return False
+
     def init_stroke(self, g, touch):
         points = [touch.x, touch.y]
         col = g.color
@@ -437,6 +476,13 @@ class GestureSurface(FloatLayout):
             if g.handles(touch):
                 return g
         raise Exception('get_gesture() failed to identify ' + str(touch.uid))
+
+    def get_gesture_from_id(self, gesture_id):
+        for g in self._gestures:
+            if gesture_id in g._strokes:
+                return g
+        raise Exception('get_gesture_from_id() failed to identify ' + gesture_id)
+
 
     def merge_gestures(self, g, other):
         '''Merges two gestures together, the oldest one is retained and the

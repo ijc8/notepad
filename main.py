@@ -318,12 +318,9 @@ class NotePadApp(App):
                 gesture_vec.append((group_id, line.points))
         self.undo_history.append((gesture_vec, notes))
 
-    def add_to_history_for_undo_redo(self, gestures, notes):
+    def add_to_history_for_undo_redo(self, gesture):
         self.redo_history = []
-        gesture_vec = []
-        for gesture in gestures:
-            gesture_vec.append((gesture.id, gesture.get_vectors()))
-        self.undo_history.append((gesture_vec, notes))
+        self.undo_history.append(gesture.id)
 
     def populate_note(self, gesture, note):
         self.gesture_to_note[gesture.id] = note
@@ -340,6 +337,7 @@ class NotePadApp(App):
         best = result.best
         g = result._gesture_obj
 
+        self.add_to_history_for_undo_redo(g)
         recognized_name = best["name"]
         if self.is_unrecognized_gesture(best["name"], g):
             # No match or ignored. Leave it onscreen in case it's for the user's benefit.
@@ -353,9 +351,6 @@ class NotePadApp(App):
             # with open(filename, "wb") as data_file:
             #    pickle.dump(g.get_vectors(), data_file)
 
-            self.add_to_history_for_undo_redo([g], [])
-            self.populate_note(g, None)
-
         text = "[b]%s[/b]" % (recognized_name)
 
         text = f"[color=#000000]{text}[/color]"
@@ -366,13 +361,12 @@ class NotePadApp(App):
             center=(g.bbox["minx"], g.bbox["miny"]),
         )
 
+        note = None
         instrument_prefix = "instrument-"
         chord_prefix = "chord-"
         if recognized_name == "trebleclef" or recognized_name == "barline":
             self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
-            self.populate_note(g, None)
-            self.add_to_history_for_undo_redo([g], [])
         elif recognized_name.startswith(instrument_prefix):
             g._cleanup_time = -1
             instrument = recognized_name[len(instrument_prefix):]
@@ -425,12 +419,9 @@ class NotePadApp(App):
             note = Note(pitch, durations[recognized_name[:-4]], x, staff)
             print(note)
 
-            self.populate_note(g, note)
-
             # Hacky way to change note color to black once it's registered.
             self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
-            self.add_to_history_for_undo_redo([g], [note])
         elif recognized_name.endswith("rest"):
             points = np.array(sum(g.get_vectors(), []))
 
@@ -442,12 +433,11 @@ class NotePadApp(App):
             note = Note(0, durations[recognized_name[:-4]], x, staff)
             print(note)
 
-
-            self.populate_note(g, note)
             # Hacky way to change rest color to black once it's registered.
             self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
-            self.add_to_history_for_undo_redo([g], [note])
+
+        self.populate_note(g, note)
 
         self.surface.add_widget(g._result_label)
 
@@ -617,21 +607,13 @@ class NotePadApp(App):
     def undo(self):
         if len(self.undo_history) == 0:
             return
-        history_val = self.undo_history[-1]
+        gesture_id = self.undo_history[-1]
         self.undo_history.pop()
-
-        gesture_vec, notes = history_val
-
-        for val in gesture_vec:
-            group_id, vectors = val
-            self.surface.canvas.remove_group(group_id)
-
-        for note in notes:
-            if note:
-                self.notes.remove(note)
-
-        self.notes.sort(key=lambda note: note.x)
-        self.redo_history.append(history_val)
+        g = self.surface.get_gesture_from_id(gesture_id)
+        (stroke_uid, _) = g.get_last_stroke()
+        needs_to_remove_note = self.surface.remove(gesture_id, stroke_uid)
+        if needs_to_remove_note:
+            self.populate_note(g, None)
 
     def redo(self):
         if len(self.redo_history) == 0:
