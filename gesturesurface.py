@@ -263,7 +263,7 @@ class GestureSurface(FloatLayout):
 
     temporal_window = NumericProperty(2.0)
     draw_timeout = NumericProperty(3.0)
-    bbox_margin = NumericProperty(30)
+    bbox_margin = NumericProperty(20)
 
     line_width = NumericProperty(2)
     color = ListProperty([1., 1., 1.])

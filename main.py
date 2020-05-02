@@ -53,6 +53,13 @@ durations = {"eighth": 1 / 2, "quarter": 1, "half": 2, "whole": 4}
 
 instruments = {"piano": (0, 0), "guitar": (0, 25), "bass": (0, 35), "drum": (128, 0)}
 
+# TODO: populate this, preferably in a semi-automated way
+# also think about what we really want to do re. voicings
+chords = {'c': [48, 52, 55],
+          'f': [53, 57, 60],
+          'g': [43, 47, 50],
+          'am': [45, 48, 52]}
+
 
 WHITE = (1, 1, 1, 1)
 BLACK = (0, 0, 0, 1)
@@ -359,18 +366,28 @@ class NotePadApp(App):
         )
 
         instrument_prefix = "instrument-"
+        chord_prefix = "chord-"
         if recognized_name == "trebleclef" or recognized_name == "barline":
             self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
             self.populate_note(g, None)
             self.add_to_history_for_undo_redo([g], [])
         elif recognized_name.startswith(instrument_prefix):
+            g._cleanup_time = -1
             instrument = recognized_name[len(instrument_prefix):]
             points = np.array(sum(g.get_vectors(), []))
             y = points[:,1].mean()
             staff = min((0, 1), key=lambda s: np.abs(self.surface.get_height(s, 4) - y))
             # TODO: add real Staff class instead of doing this ad-hoc stuff.
             self.fs.program_select(staff, self.sfid, *instruments[instrument])
+        elif recognized_name.startswith(chord_prefix):
+            g._cleanup_time = -1
+            chord = recognized_name[len(chord_prefix):]
+            points = np.array(sum(g.get_vectors(), []))
+            x, y = points.mean(axis=0)
+            staff = min((0, 1), key=lambda s: np.abs(self.surface.get_height(s, 4) - y))
+            # TODO: add real Staff class instead of doing this ad-hoc stuff.
+            self.staff_chords[staff].append((x, chord))
         elif recognized_name.endswith("note"):
             points = np.array(sum(g.get_vectors(), []))
 
@@ -484,7 +501,6 @@ class NotePadApp(App):
                     dest=self.synthID,
                     velocity=127,
                 )
-                # NOTE: if notes are not legato (slurs, ties), we might want to leave a little gap between off and the next on.
                 self.seq.note_off(
                     time=int(stave_times[note.staff] + t_duration),
                     absolute=False,
@@ -492,6 +508,28 @@ class NotePadApp(App):
                     key=note.pitch,
                     dest=self.synthID,
                 )
+                # Note that this is the nearest chord *to the left* of the note; the preceding chord holds until the next one replaces it.
+                print(self.staff_chords[note.staff])
+                preceding_chords = [c for c in self.staff_chords[note.staff] if c[0] < note.x]
+                if preceding_chords:
+                    preceding_chords.sort(key=lambda c: c[0])
+                    active_chord = preceding_chords[-1][1]
+                    for pitch in chords[active_chord]:
+                        self.seq.note_on(
+                            time=int(stave_times[note.staff]),
+                            absolute=False,
+                            channel=note.staff,
+                            key=pitch,
+                            dest=self.synthID,
+                            velocity=127,
+                        )
+                        self.seq.note_off(
+                            time=int(stave_times[note.staff] + t_duration),
+                            absolute=False,
+                            channel=note.staff,
+                            key=pitch,
+                            dest=self.synthID,
+                        )
             stave_times[note.staff] += t_duration
         return max(stave_times)
 
@@ -786,6 +824,7 @@ class NotePadApp(App):
         if is_desktop:
             self.audio = pyaudio.PyAudio()
         self.notes = []
+        self.staff_chords = [[], []]
         self.gesture_to_note = {}
         self.seq = fluidsynth.Sequencer(time_scale=self.time_scale)
         self.fs = fluidsynth.Synth()
