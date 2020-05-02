@@ -488,33 +488,39 @@ class NotePadApp(App):
 
         self.seq.timer(t, dest=callbackID, absolute=False)
 
-    # TODO: add pause functionality.
-    # should look like this but store position so we start playback in the right place later
+    # TODO: Perhaps wrap up this stuff in a Player class.
     def stop(self):
+        self.play_pos = 0
         if self.playing:
             self.seq.remove_events()
             self.playing = False
 
-    def playback(self):
-        # Don't double play. This will become redundant after we add pause.
+    def pause(self):
+        if self.playing:
+            self.seq.remove_events()
+            self.playing = False
+            self.play_pos = self.seq.get_tick() - self.play_start_tick
+
+    def play(self):
         if self.playing:
             return
         self.playing = True
         stave_times = [0, 0]
+        self.play_start_tick = self.seq.get_tick()
         for note in self.notes:
             t_duration = self.beats_to_ticks(note.duration)
-            if note.pitch > 0:
+            time = stave_times[note.staff] - self.play_pos
+            if note.pitch > 0 and time >= 0:
+                time += self.play_start_tick
                 self.seq.note_on(
-                    time=int(stave_times[note.staff]),
-                    absolute=False,
+                    time=int(time),
                     channel=note.staff,
                     key=note.pitch,
                     dest=self.synthID,
                     velocity=127,
                 )
                 self.seq.note_off(
-                    time=int(stave_times[note.staff] + t_duration),
-                    absolute=False,
+                    time=int(time + t_duration),
                     channel=note.staff,
                     key=note.pitch,
                     dest=self.synthID,
@@ -527,16 +533,14 @@ class NotePadApp(App):
                     active_chord = preceding_chords[-1][1]
                     for pitch in chords[active_chord]:
                         self.seq.note_on(
-                            time=int(stave_times[note.staff]),
-                            absolute=False,
+                            time=int(time),
                             channel=note.staff,
                             key=pitch,
                             dest=self.synthID,
                             velocity=127,
                         )
                         self.seq.note_off(
-                            time=int(stave_times[note.staff] + t_duration),
-                            absolute=False,
+                            time=int(time + t_duration),
                             channel=note.staff,
                             key=pitch,
                             dest=self.synthID,
@@ -544,9 +548,11 @@ class NotePadApp(App):
             stave_times[note.staff] += t_duration
 
         duration = max(stave_times)
-        def done_playing(*_): self.playing = False
+        def done_playing(*_):
+            self.playing = False
+            self.play_pos = 0
         done_playing_callback = self.seq.register_client(name=f"done_playng", callback=done_playing)
-        self.seq.timer(time=duration, dest=done_playing_callback, absolute=False)
+        self.seq.timer(time=self.play_start_tick + duration, dest=done_playing_callback)
         return duration
 
     def save_to_file(self, path):
@@ -839,6 +845,8 @@ class NotePadApp(App):
         self.tempo = 120  # bpm
         if is_desktop:
             self.audio = pyaudio.PyAudio()
+        self.play_start_tick = 0
+        self.play_pos = 0
         self.notes = []
         self.staff_chords = [[], []]
         self.gesture_to_note = {}

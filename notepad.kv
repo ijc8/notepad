@@ -165,8 +165,8 @@
     width: self.height / 8
     IconButton:
         image: 'icons/pause.png' if app.playing else 'icons/play.png'
-        image_color: (0, 1, 0, 1)
-        on_press: app.playback()
+        image_color: (1, 1, 0, 1) if app.playing else (0, 1, 0, 1)
+        on_press: app.pause() if app.playing else app.play()
     IconButton:
         image: 'icons/stop.png'
         image_color: (1, 0, 0, 1)
