@@ -175,8 +175,8 @@
     ToggleIconButton:
         image: 'icons/loop.png'
         on_press:
-            if self.state == 'down': app.loop()
-            if self.state == 'normal': app.stop()
+            if self.state == 'down': app.start_loop()
+            if self.state == 'normal': app.stop_loop()
     IconButton:
         image: 'icons/voice_record.png'
         image_color: (0.9, 0.2, 0.2, 1)

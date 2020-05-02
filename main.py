@@ -397,9 +397,6 @@ class NotePadApp(App):
         elif recognized_name.endswith("rest"):
             points = np.array(sum(g.get_vectors(), []))
 
-            # For saving inks
-            # with open("ink/eighthrest", "wb") as data_file:
-            #    pickle.dump(g.get_vectors(), data_file)
             x, y = points.mean(axis=0)
             staves = [0, 1]
             staff = min(
@@ -417,16 +414,7 @@ class NotePadApp(App):
         self.surface.add_widget(g._result_label)
 
     def is_unrecognized_gesture(self, name, gesture):
-        if name is None:
-            return True
-
-        if self.is_command_gesture(name):
-            return False
-
-        if self.too_far_away_from_staff(gesture):
-            return True
-
-        return False
+        return name is None or self.too_far_away_from_staff(gesture)
 
     def too_far_away_from_staff(self, gesture):
         miny = gesture.bbox["miny"]
@@ -439,17 +427,12 @@ class NotePadApp(App):
 
         return (self.surface.size[1] / 22) < dist
 
-    def is_command_gesture(self, name):
-        commands = ["play", "loop", "stop"]
-        return name in commands
-
-    # TODO: stop playback immediately
-    def stop(self):
-        self.shouldLoop = False
-
-    def loop(self):
+    def start_loop(self):
         self.shouldLoop = True
         self.loopHelper()
+
+    def stop_loop(self):
+        self.shouldLoop = False
 
     def loopHelper(self):
         if not self.shouldLoop:
@@ -458,7 +441,7 @@ class NotePadApp(App):
         def loop_callback(time, event, seq, data):
             if not self.shouldLoop:
                 return
-            self.loop()
+            self.loopHelper()
 
         t = int(self.playback())
         callbackID = self.seq.register_client(
@@ -467,6 +450,7 @@ class NotePadApp(App):
 
         self.seq.timer(t, dest=callbackID, absolute=False)
 
+    # TODO: add pause functionality.
     def playback(self):
         stave_times = [0, 0]
         for note in self.notes:
@@ -491,7 +475,6 @@ class NotePadApp(App):
 
         with open(path, "wb") as data_file:
             pickle.dump(gesture_vec, data_file)
-        return
 
     def save(self, *l):
         path = self.save_popup.ids.filename.text
@@ -534,8 +517,6 @@ class NotePadApp(App):
             with self.surface.canvas:
                 Color(rgba=BLACK)
                 Line(points=np_vectors.flat, group=group_id, width=2)
-
-        return
 
     def clear(self):
         self.undo_history = []
@@ -716,48 +697,52 @@ class NotePadApp(App):
         self.record(self.transcribe_melody)
 
     def transcribe_rhythm(self, audio, sr):
-        if is_desktop:
-            rhythm = list(
-                transcribe.extract_rhythm(audio, sr, self.tempo, verbose=self.debug)
-            )
-            print("rhythm", rhythm)
-            # HACK for prototype demo
-            melody = []
-            for (start, end) in zip(rhythm, rhythm[1:] + [4]):
-                melody.append((start, end - start, 64))
-            print(melody)
-            group_id = self.generate_group_id()
-            xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
-            notes = [
-                Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)
-            ]
+        if not is_desktop:
+            return
 
-            self.notes += notes
-            self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
+        rhythm = list(
+            transcribe.extract_rhythm(audio, sr, self.tempo, verbose=self.debug)
+        )
+        print("rhythm", rhythm)
+        # HACK for prototype demo
+        melody = []
+        for (start, end) in zip(rhythm, rhythm[1:] + [4]):
+            melody.append((start, end - start, 64))
+        print(melody)
+        group_id = self.generate_group_id()
+        xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
+        notes = [
+            Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)
+        ]
+
+        self.notes += notes
+        self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
 
     def transcribe_melody(self, audio, sr):
-        if is_desktop:
-            melody = transcribe.extract_melody(
-                audio, sr, self.tempo, verbose=self.debug
-            )
-            # For the demo, we're going to keep this in the treble clef: say, in a range of 62 to 79.
-            # TODO: draw ledger lines
-            def get_in_range(p):
-                p = (p - 62) % 24
-                if p > 79 - 62:
-                    p %= 12
-                return p + 62
+        if not is_desktop:
+            return
 
-            melody = [(s, v, get_in_range(p) if p else 0) for s, v, p in melody]
-            print(melody)
-            group_id = self.generate_group_id()
-            xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
-            notes = [
-                Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)
-            ]
-            self.notes += notes
-            self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
-            print("melody", melody)
+        melody = transcribe.extract_melody(
+            audio, sr, self.tempo, verbose=self.debug
+        )
+        # For the demo, we're going to keep this in the treble clef: say, in a range of 62 to 79.
+        # TODO: draw ledger lines
+        def get_in_range(p):
+            p = (p - 62) % 24
+            if p > 79 - 62:
+                p %= 12
+            return p + 62
+
+        melody = [(s, v, get_in_range(p) if p else 0) for s, v, p in melody]
+        print(melody)
+        group_id = self.generate_group_id()
+        xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
+        notes = [
+            Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)
+        ]
+        self.notes += notes
+        self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
+        print("melody", melody)
 
     def beats_to_ticks(self, beats):
         ticks = self.time_scale / (self.tempo / 60) * beats
