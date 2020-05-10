@@ -189,13 +189,13 @@
         on_press: app.record_rhythm()
     IconButton:
         image: 'icons/undo.png'
-        on_press: app.undo()
+        on_press: app.surface.undo()
     IconButton:
         image: 'icons/redo.png'
-        on_press: app.redo()
+        on_press: app.surface.redo()
     IconButton:
         image: 'icons/clear.png'
-        on_press: app.clear()
+        on_press: app.surface.clear()
     IconButton:
         image: 'icons/save.png'
         on_press: app.save_popup.open()

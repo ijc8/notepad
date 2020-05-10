@@ -51,7 +51,7 @@ class GestureHistoryManager(GridLayout):
         # res = self.recognizer.recognize(gesture_obj.get_vectors(),
         #                                max_gpf=100)
 
-        dollarResult = self.recognizer.recognize(util.convert_to_dollar(gesture_obj.get_vectors()))
+        dollarResult = self.recognizer.recognize(util.convert_to_dollar(gesture_obj.strokes))
         res = util.ResultWrapper(dollarResult)
 
         # Tag the result with the gesture object (it didn't change)
@@ -87,7 +87,7 @@ class GestureHistoryManager(GridLayout):
         strokelen = ids.stroke_sens.value
         angle_sim = ids.angle_sim.value
 
-        cand = util.convert_to_dollar(self.selected._result_obj._gesture_obj.get_vectors())
+        cand = util.convert_to_dollar(self.selected._result_obj._gesture_obj.strokes)
 
         self.recognizer.templates.append(Template(name, cand))
 
@@ -248,20 +248,21 @@ class GestureVisualizer(Widget):
     # FIXME: This seems inefficient, is there a better way??
     def _draw_item(self, dt):
         g = self._gesture_container
-        bb = g.bbox
-        minx, miny, maxx, maxy = bb['minx'], bb['miny'], bb['maxx'], bb['maxy']
+        minx, miny, maxx, maxy = g.minx, g.miny, g.maxx, g.maxy
         width, height = self.size
         xpos, ypos = self.pos
 
-        if g.height > g.width:
-            to_self = (height * 0.85) / g.height
+        gheight = maxy - miny
+        gwidth = maxx - minx
+        if gheight > gwidth:
+            to_self = (height * 0.85) / gheight
         else:
-            to_self = (width * 0.85) / g.width
+            to_self = (width * 0.85) / gwidth
 
         self.canvas.remove_group('gesture')
 
-        cand = g.get_vectors()
-        col = g.color
+        cand = g.strokes
+        col = [1, 1, 1]
         for stroke in cand:
             out = []
             append = out.append

@@ -9,7 +9,7 @@ from kivy.app import App
 from kivy.uix.button import Button
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.boxlayout import BoxLayout
-from gesturesurface import GestureSurface
+from gesturesurface import StrokeSurface
 from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
 from kivy.uix.label import Label
 from kivy.uix.popup import Popup
@@ -97,8 +97,120 @@ class NotePadSavePopup(Popup):
 class NotePadLoadPopup(Popup):
     pass
 
+# Notes:
+# - NotePadSurface represents the "surface" state - all of the ink, everything that is externally visible.
+#   We need to easily get all of the state to interpret and save.
+#   This should handle things like drawing, erasing, undo, and redo, all as "surface-level" operations/
+#   The corresponding changes to internal state are attained by reinterpreting the NotePadSurface.
+# - NotePadState represents the internal state - staves, notes, chords, instruments.
+#   This should be entirely derivable from the NotePadSurface, and should never go out of sync.
 
-class NotePadSurface(GestureSurface):
+class NotePadState:
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.notes = []
+        self.staff_chords = [[], []]
+
+    def is_unrecognized_gesture(self, name, gesture):
+        return name is None # or self.too_far_away_from_staff(gesture)
+
+    def too_far_away_from_staff(self, gesture):
+        # TODO
+        miny = gesture.miny
+        maxy = gesture.maxy
+
+        dist = np.inf
+        for y in [miny, maxy]:
+            for staff_y in [surface.height_min, surface.height_max]:
+                dist = min(dist, abs(y - staff_y))
+
+        return (surface.size[1] / 22) < dist
+
+    # This will process the recognition of a single area in the canvas.
+    def handle_recognition_result(self, surface, result):
+        best = result.best
+        g = result._gesture_obj
+        instrument_prefix = "instrument-"
+        chord_prefix = "chord-"
+
+        recognized_name = best["name"]
+        if self.is_unrecognized_gesture(best["name"], g):
+            # No match or ignored. Leave it onscreen in case it's for the user's benefit.
+            # TODO: self.set_color_rgba(g.id, RED)
+            recognized_name = "Not Recognized"
+
+        # TODO: more feedback?
+        print(recognized_name)
+        points = np.array(sum(g.strokes, []))
+
+        if recognized_name == "trebleclef" or recognized_name == "barline":
+            # self.set_color_rgba(g.id, BLACK)
+            pass
+        elif recognized_name.startswith(instrument_prefix):
+            instrument = recognized_name[len(instrument_prefix):]
+            y = points[:,1].mean()
+            staff = min((0, 1), key=lambda s: np.abs(surface.get_height(s, 4) - y))
+            # TODO: add real Staff class instead of doing this ad-hoc stuff.
+            self.fs.program_select(staff, self.sfid, *instruments[instrument])
+        elif recognized_name.startswith(chord_prefix):
+            chord = recognized_name[len(chord_prefix):]
+            x, y = points.mean(axis=0)
+            staff = min((0, 1), key=lambda s: np.abs(surface.get_height(s, 4) - y))
+            # TODO: add real Staff class instead of doing this ad-hoc stuff.
+            self.staff_chords[staff].append((x, chord))
+        elif recognized_name.endswith("note"):
+            center = points.mean(axis=0)
+            points = points[util.reject_outliers(points[:, 1])]
+            # TODO: temp visualization
+            # new_center = points.mean(axis=0)
+            # radius = 5
+            # if self.debug:
+            #     with self.surface.canvas:
+            #         Color(rgba=WHITE)
+            #         Ellipse(pos=center - radius, size=(radius * 2, radius * 2))
+            #         Color(rgba=BLACK)
+            #         Ellipse(pos=new_center - radius, size=(radius * 2, radius * 2))
+            # end tmp
+
+            x, y = points.mean(axis=0)
+            treble_pitches = [64, 65, 67, 69, 71, 72, 74, 76, 77][::-1]
+            bass_pitches = [43, 45, 47, 48, 50, 52, 53, 55, 57][::-1]
+            pitches_per_staff = [treble_pitches, bass_pitches]
+            # TODO: don't do this the dumb way, and move this functionality to NotePadSurface
+            lines = range(0, 9)
+            staves = [0, 1]
+            product = itertools.product(staves, lines)
+            staff, line = min(
+                product,
+                key=lambda p: np.abs(surface.get_height(p[0], p[1] / 2) - y),
+            )
+            pitch = pitches_per_staff[staff][line]
+            note = Note(pitch, durations[recognized_name[:-4]], x, staff)
+            print(note)
+            self.notes.append(note)
+            self.notes.sort(key=lambda note: note.x)
+
+            # Hacky way to change note color to black once it's registered.
+            # self.set_color_rgba(g.id, BLACK)
+        elif recognized_name.endswith("rest"):
+            x, y = points.mean(axis=0)
+            staves = [0, 1]
+            staff = min(
+                staves, key=lambda s: np.abs(surface.get_height(s, 4.5) - y)
+            )
+            note = Note(0, durations[recognized_name[:-4]], x, staff)
+            print(note)
+            self.notes.append(note)
+            self.notes.sort(key=lambda note: note.x)
+
+            # Hacky way to change rest color to black once it's registered.
+            # self.set_color_rgba(g.id, BLACK)
+
+
+# Manages current interaction mode, maintains "surface-level" undo and redo history.
+class NotePadSurface(StrokeSurface):
     def on_kv_post(self, base_widget):
         super().on_kv_post(base_widget)
 
@@ -266,13 +378,39 @@ class Note:
     def __repr__(self):
         return f"Note({self.pitch}, {self.duration}, {self.x}, {self.staff})"
 
-class Action(Enum):
-    NONE = 1
-    NOTE = 2
 
-class HISTORY(Enum):
-    TOUCH = 1
-    TRANSCRIBE = 2
+class StrokeGroup:
+    def __init__(self, strokes):
+        self.bbox_margin = 20
+        self.strokes = strokes
+        all_points = np.array(sum(strokes, []))
+        self.minx = np.min(all_points[:, 0])
+        self.maxx = np.max(all_points[:, 0])
+        self.miny = np.min(all_points[:, 1])
+        self.maxy = np.max(all_points[:, 1])
+
+    def merge(self, other):
+        self.strokes += other.strokes
+        all_points = np.array(sum(self.strokes, []))
+        self.minx = np.min(all_points[:, 0])
+        self.maxx = np.max(all_points[:, 0])
+        self.miny = np.min(all_points[:, 1])
+        self.maxy = np.max(all_points[:, 1])
+
+    def is_bbox_intersecting_helper(self, x, y):
+        margin = self.bbox_margin
+        minx = self.minx - margin
+        miny = self.miny - margin
+        maxx = self.maxx + margin
+        maxy = self.maxy + margin
+        return minx <= x <= maxx and miny <= y <= maxy
+
+    def is_intersecting(self, other):
+        return self.is_bbox_intersecting_helper(other.minx, other.miny) or \
+               self.is_bbox_intersecting_helper(other.minx, other.maxy) or \
+               self.is_bbox_intersecting_helper(other.maxx, other.miny) or \
+               self.is_bbox_intersecting_helper(other.maxx, other.maxy)
+
 
 class NotePadApp(App):
     debug = BooleanProperty(False)
@@ -282,256 +420,40 @@ class NotePadApp(App):
         self.database.import_gdb()
         self.manager.current = "database"
 
-    def handle_gesture_cleanup(self, surface, g, *l):
-        self.remove_label(g)
+    def interpret_canvas(self, surface):
+        self.state.reset()
+        strokes = self.surface.get_vectors()
+        groups = [StrokeGroup([stroke]) for stroke in strokes]
+        for stroke in strokes:
+            stroke = np.array(stroke)
 
-    def handle_gesture_merge(self, surface, g, *l):
-        self.remove_label(g)
-        self.populate_gesture_action(g.id, None)
+        def needs_merging():
+            for g in groups:
+                for other in groups:
+                    if g == other:
+                        continue
+                    if g.is_intersecting(other):
+                        return (g, other)
+            return None  # just to be explicit!
 
-    def remove_label(self, g):
-        if hasattr(g, "_result_label"):
-            self.surface.remove_widget(g._result_label)
+        # TODO optimize
+        while True:
+            val = needs_merging()
+            if (val is None):
+                break
+            (a, b) = val
+            a.merge(b)
+            groups.remove(b)
 
-    def handle_gesture_touch_up(self, surface, *l):
-        self.undo_history_types.append(HISTORY.TOUCH)
-        self.redo_history_types = []
-        self.surface.clear_redo_history()
-        self.clear_melody_redo_history()
+        print(len(groups))
 
-    def clear_melody_redo_history(self):
-        self.redo_melody_history = []
+        for g in groups:
+            dollarResult = self.recognizer.recognize(util.convert_to_dollar(g.strokes))
+            result = util.ResultWrapper(dollarResult)
+            result._gesture_obj = g
 
-    def clear_melody_history(self):
-        self.undo_melody_history = []
-        self.redo_melody_history = []
-
-    def handle_gesture_discard(self, surface, g, *l):
-        # Don't bother creating Label if it's not going to be drawn
-        if surface.draw_timeout == 0:
-            return
-
-        text = "[b]Discarded:[/b] Not enough input"
-
-        self.remove_label(g)
-
-        g._result_label = Label(
-            text=text,
-            markup=True,
-            size_hint=(None, None),
-            center=(g.bbox["minx"], g.bbox["miny"]),
-        )
-        self.surface.add_widget(g._result_label)
-
-    def set_color_rgba(self, gesture_id, rgba):
-        group = list(self.surface.canvas.get_group(gesture_id))
-        for i0, i1 in zip(group, group[2:]):
-            if isinstance(i0, Color) and isinstance(i1, Line):
-                i0.rgba = rgba
-
-    def handle_gesture_complete(self, surface, g, *l):
-        dollarResult = self.recognizer.recognize(
-            util.convert_to_dollar(g.get_vectors())
-        )
-        result = util.ResultWrapper(dollarResult)
-        result._gesture_obj = g
-
-        self.handle_recognize_complete(result)
-
-    def add_to_history_for_transcribe(self, group_id, notes):
-        self.undo_history_types.append(HISTORY.TRANSCRIBE)
-        self.redo_history_types = []
-        self.surface.clear_redo_history()
-        self.clear_melody_redo_history()
-
-        group = list(self.surface.canvas.get_group(group_id))
-        gesture_vec = []
-        for line in group:
-            if isinstance(line, Line):
-                gesture_vec.append((group_id, line.points))
-        self.undo_melody_history.append((gesture_vec, notes))
-
-    def redo_melody(self):
-        if len(self.redo_melody_history) == 0:
-            return
-        history_val = self.redo_melody_history[-1]
-        self.redo_melody_history.pop()
-
-        gesture_vec, notes = history_val
-        for val in gesture_vec:
-            group_id, vectors = val
-            np_vectors = np.array(vectors)
-            with self.surface.canvas:
-                Color(rgba=BLACK)
-                Line(points=np_vectors.flat, group=group_id, width=2)
-
-        self.populate_gesture_action(group_id, (Action.NOTE, notes))
-        self.undo_melody_history.append(history_val)
-
-    def undo_melody(self):
-        if len(self.undo_melody_history) == 0:
-            return
-        history_val = self.undo_melody_history[-1]
-        self.undo_melody_history.pop()
-
-        gesture_vec, notes = history_val
-        for val in gesture_vec:
-            group_id, vectors = val
-            self.surface.canvas.remove_group(group_id)
-
-        self.populate_gesture_action(group_id, None)
-        self.redo_melody_history.append(history_val)
-
-
-
-    def populate_gesture_action(self, gesture_id, action):
-        self.gesture_to_action[gesture_id] = action
-
-        # Update notes
-        notes = list(
-            map(
-                lambda action: action[1],
-                filter(
-                    lambda action: (action and action[0] == Action.NOTE),
-                    self.gesture_to_action.values()
-                )
-            )
-        )
-
-        self.notes = sum(notes, [])
-        self.notes.sort(key=lambda note: note.x)
-
-    def handle_recognize_complete(self, result, recomplete=False):
-        self.history.add_recognizer_result(result)
-
-        # Don't bother creating Label if it's not going to be drawn
-        if self.surface.draw_timeout == 0:
-            return
-
-        best = result.best
-        g = result._gesture_obj
-        action = None
-        instrument_prefix = "instrument-"
-        chord_prefix = "chord-"
-
-        recognized_name = best["name"]
-        if self.is_unrecognized_gesture(best["name"], g):
-            # No match or ignored. Leave it onscreen in case it's for the user's benefit.
-            self.set_color_rgba(g.id, RED)
-            recognized_name = "Not Recognized"
-            g._cleanup_time = -1
-
-            # For saving inks
-            # self.record_counter += 1
-            # filename='ink/record_{}'.format(self.record_counter)
-            # with open(filename, "wb") as data_file:
-            #    pickle.dump(g.get_vectors(), data_file)
-
-        self.remove_label(g)
-
-        text = "[b]%s[/b]" % (recognized_name)
-        text = f"[color=#000000]{text}[/color]"
-
-        g._result_label = Label(
-            text=text,
-            markup=True,
-            size_hint=(None, None),
-            center=(g.bbox["minx"], g.bbox["miny"]),
-        )
-
-
-        if recognized_name == "trebleclef" or recognized_name == "barline":
-            self.set_color_rgba(g.id, BLACK)
-            g._cleanup_time = -1
-        elif recognized_name.startswith(instrument_prefix):
-            g._cleanup_time = -1
-            instrument = recognized_name[len(instrument_prefix):]
-            points = np.array(sum(g.get_vectors(), []))
-            y = points[:,1].mean()
-            staff = min((0, 1), key=lambda s: np.abs(self.surface.get_height(s, 4) - y))
-            # TODO: add real Staff class instead of doing this ad-hoc stuff.
-            self.fs.program_select(staff, self.sfid, *instruments[instrument])
-        elif recognized_name.startswith(chord_prefix):
-            g._cleanup_time = -1
-            chord = recognized_name[len(chord_prefix):]
-            points = np.array(sum(g.get_vectors(), []))
-            x, y = points.mean(axis=0)
-            staff = min((0, 1), key=lambda s: np.abs(self.surface.get_height(s, 4) - y))
-            # TODO: add real Staff class instead of doing this ad-hoc stuff.
-            self.staff_chords[staff].append((x, chord))
-        elif recognized_name.endswith("note"):
-            points = np.array(sum(g.get_vectors(), []))
-
-            # For saving inks
-            # with open("ink/eighthnote", "wb") as data_file:
-            #    pickle.dump(g.get_vectors(), data_file)
-
-            # TODO: temp visualization
-            center = points.mean(axis=0)
-            points = points[util.reject_outliers(points[:, 1])]
-            new_center = points.mean(axis=0)
-            radius = 5
-            if self.debug:
-                with self.surface.canvas:
-                    Color(rgba=WHITE)
-                    Ellipse(pos=center - radius, size=(radius * 2, radius * 2))
-                    Color(rgba=BLACK)
-                    Ellipse(pos=new_center - radius, size=(radius * 2, radius * 2))
-            # end tmp
-
-            x, y = points.mean(axis=0)
-            treble_pitches = [64, 65, 67, 69, 71, 72, 74, 76, 77][::-1]
-            bass_pitches = [43, 45, 47, 48, 50, 52, 53, 55, 57][::-1]
-            pitches_per_staff = [treble_pitches, bass_pitches]
-            # TODO: don't do this the dumb way, and move this functionality to NotePadSurface
-            lines = range(0, 9)
-            staves = [0, 1]
-            product = itertools.product(staves, lines)
-            staff, line = min(
-                product,
-                key=lambda p: np.abs(self.surface.get_height(p[0], p[1] / 2) - y),
-            )
-            pitch = pitches_per_staff[staff][line]
-            note = Note(pitch, durations[recognized_name[:-4]], x, staff)
-            print(note)
-
-            # Hacky way to change note color to black once it's registered.
-            self.set_color_rgba(g.id, BLACK)
-            g._cleanup_time = -1
-            action = (Action.NOTE, [note])
-        elif recognized_name.endswith("rest"):
-            points = np.array(sum(g.get_vectors(), []))
-
-            x, y = points.mean(axis=0)
-            staves = [0, 1]
-            staff = min(
-                staves, key=lambda s: np.abs(self.surface.get_height(s, 4.5) - y)
-            )
-            note = Note(0, durations[recognized_name[:-4]], x, staff)
-            print(note)
-
-            # Hacky way to change rest color to black once it's registered.
-            self.set_color_rgba(g.id, BLACK)
-            g._cleanup_time = -1
-            action = (Action.NOTE, [note])
-
-        self.populate_gesture_action(g.id, action)
-
-        self.surface.add_widget(g._result_label)
-
-    def is_unrecognized_gesture(self, name, gesture):
-        return name is None or self.too_far_away_from_staff(gesture)
-
-    def too_far_away_from_staff(self, gesture):
-        miny = gesture.bbox["miny"]
-        maxy = gesture.bbox["maxy"]
-
-        dist = np.inf
-        for y in [miny, maxy]:
-            for staff_y in [self.surface.height_min, self.surface.height_max]:
-                dist = min(dist, abs(y - staff_y))
-
-        return (self.surface.size[1] / 22) < dist
+            self.history.add_recognizer_result(result)
+            self.state.handle_recognition_result(self.surface, result)
 
     def start_loop(self):
         self.shouldLoop = True
@@ -576,7 +498,7 @@ class NotePadApp(App):
         stave_times = [0, 0]
         self.play_start_tick = self.seq.get_tick()
 
-        for note in self.notes:
+        for note in self.state.notes:
             t_duration = self.beats_to_ticks(note.duration)
             time = stave_times[note.staff] - self.play_pos
             if note.pitch > 0 and time >= 0:
@@ -595,8 +517,8 @@ class NotePadApp(App):
                     dest=self.synthID,
                 )
                 # Note that this is the nearest chord *to the left* of the note; the preceding chord holds until the next one replaces it.
-                print(self.staff_chords[note.staff])
-                preceding_chords = [c for c in self.staff_chords[note.staff] if c[0] < note.x]
+                print(self.state.staff_chords[note.staff])
+                preceding_chords = [c for c in self.state.staff_chords[note.staff] if c[0] < note.x]
                 if preceding_chords:
                     preceding_chords.sort(key=lambda c: c[0])
                     active_chord = preceding_chords[-1][1]
@@ -625,13 +547,8 @@ class NotePadApp(App):
         return duration
 
     def save_to_file(self, path):
-        gesture_vec = []
-
-        for gesture in self.surface._gestures:
-            gesture_vec.append((gesture.id, gesture.get_vectors()))
-
         with open(path, "wb") as data_file:
-            pickle.dump(gesture_vec, data_file)
+            pickle.dump(self.surface.get_vectors(), data_file)
 
     def save(self, *l):
         path = self.save_popup.ids.filename.text
@@ -664,57 +581,15 @@ class NotePadApp(App):
     def load_from_file(self, filename):
         self.clear()
 
-        gesture_vec = None
+        stroke_vec = None
         with open(filename, "rb") as data_file:
-            gesture_vec = pickle.load(data_file)
+            stroke_vec = pickle.load(data_file)
 
-        for val in gesture_vec:
-            group_id, vectors = val
+        for vectors in stroke_vec:
             np_vectors = np.array(vectors)
             with self.surface.canvas:
                 Color(rgba=BLACK)
                 Line(points=np_vectors.flat, group=group_id, width=2)
-
-    def clear(self):
-
-        self.undo_history_types = []
-        self.redo_history_types = []
-
-        self.notes = []
-        self.gesture_to_action = {}
-        self.surface._gestures = []
-        self.surface.canvas.clear()
-        self.surface.clear_history()
-        self.clear_melody_history()
-
-    def undo(self):
-        if len(self.undo_history_types) == 0:
-            return
-
-        history_type = self.undo_history_types[-1]
-        self.undo_history_types.pop()
-
-        self.redo_history_types.append(history_type)
-
-        if (history_type == HISTORY.TOUCH):
-            gesture_id = self.surface.undo()
-            if gesture_id:
-                self.populate_gesture_action(gesture_id, None)
-        elif (history_type == HISTORY.TRANSCRIBE):
-            self.undo_melody()
-
-    def redo(self):
-        if len(self.redo_history_types) == 0:
-            return
-
-        history_type = self.redo_history_types[-1]
-        self.redo_history_types.pop()
-        self.undo_history_types.append(history_type)
-
-        if (history_type == HISTORY.TOUCH):
-            self.surface.redo()
-        elif (history_type == HISTORY.TRANSCRIBE):
-            self.redo_melody()
 
     def update_record_signifiers(self, idx):
         idx -= 1  # fluidsynth scheduler workaround
@@ -867,9 +742,7 @@ class NotePadApp(App):
         notes = [
             Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)
         ]
-
-        self.add_to_history_for_transcribe(group_id, notes)
-        self.populate_gesture_action(group_id, (Action.NOTE, notes))
+        # TODO: add StrokeContainers to StrokeSurface
 
     def transcribe_melody(self, audio, sr):
         if not is_desktop:
@@ -894,8 +767,7 @@ class NotePadApp(App):
             Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)
         ]
 
-        self.add_to_history_for_transcribe(group_id, notes)
-        self.populate_gesture_action(group_id, (Action.NOTE, notes))
+        # TODO add StrokeContainers to StrokeSurface
 
     def beats_to_ticks(self, beats):
         ticks = self.time_scale / (self.tempo / 60) * beats
@@ -910,9 +782,6 @@ class NotePadApp(App):
             self.audio = pyaudio.PyAudio()
         self.play_start_tick = 0
         self.play_pos = 0
-        self.notes = []
-        self.staff_chords = [[], []]
-        self.gesture_to_action = {}
         self.seq = fluidsynth.Sequencer(time_scale=self.time_scale)
         self.fs = fluidsynth.Synth()
         self.debug = False
@@ -938,11 +807,6 @@ class NotePadApp(App):
         self.fs.program_select(1, self.sfid, 0, 0)
         self.synthID = self.seq.register_fluidsynth(self.fs)
 
-        self.undo_melody_history = []
-        self.redo_melody_history = []
-        self.undo_history_types = []
-        self.redo_history_types = []
-
         self.group_id_counter = 0
         self.record_counter = 0
 
@@ -950,6 +814,7 @@ class NotePadApp(App):
         # to some inexplicable rendering bugs on my particular system
         self.manager = ScreenManager(transition=SlideTransition(duration=0.15))
 
+        self.state = NotePadState()
         self.recognizer = Recognizer([])
 
         # Setup the GestureSurface and bindings to our Recognizer
@@ -958,11 +823,7 @@ class NotePadApp(App):
         surface_container = self.surface_screen.ids["container"]
         self.surface = surface_container.ids["surface"]
 
-        self.surface.bind(on_gesture_discard=self.handle_gesture_discard)
-        self.surface.bind(on_gesture_complete=self.handle_gesture_complete)
-        self.surface.bind(on_gesture_cleanup=self.handle_gesture_cleanup)
-        self.surface.bind(on_gesture_merge=self.handle_gesture_merge)
-        self.surface.bind(on_gesture_touch_up=self.handle_gesture_touch_up)
+        self.surface.bind(on_canvas_change=self.interpret_canvas)
 
         self.manager.add_widget(self.surface_screen)
 
@@ -1022,6 +883,9 @@ class NotePadApp(App):
         def on_keyboard(instance, key, scancode, codepoint, modifiers):
             if codepoint == "d":
                 self.debug = not self.debug
+                print('Canvas state:')
+                for vec in self.surface.get_vectors():
+                    print(vec)
 
         Window.bind(on_keyboard=on_keyboard)
 
