@@ -283,7 +283,7 @@ class NotePadApp(App):
 
     def handle_gesture_merge(self, surface, g, *l):
         self.remove_label(g)
-        self.populate_gesture_action(g, None)
+        self.populate_gesture_action(g.id, None)
 
     def remove_label(self, g):
         if hasattr(g, "_result_label"):
@@ -325,19 +325,19 @@ class NotePadApp(App):
         self.handle_recognize_complete(result)
 
     def add_to_history_for_undo_redo_with_group_id(self, group_id, notes):
-        self.redo_history = []
+        self.redo_melody_history = []
         group = list(self.surface.canvas.get_group(group_id))
         gesture_vec = []
         for line in group:
             if isinstance(line, Line):
                 gesture_vec.append((group_id, line.points))
-        self.undo_history.append((gesture_vec, notes))
+        self.undo_melody_history.append((gesture_vec, notes))
 
-    def populate_gesture_action(self, gesture, action):
-        self.gesture_to_action[gesture.id] = action
+    def populate_gesture_action(self, gesture_id, action):
+        self.gesture_to_action[gesture_id] = action
 
         # Update notes
-        self.notes = list(
+        notes = list(
             map(
                 lambda action: action[1],
                 filter(
@@ -347,8 +347,7 @@ class NotePadApp(App):
             )
         )
 
-        print(self.notes)
-
+        self.notes = sum(notes, [])
         self.notes.sort(key=lambda note: note.x)
 
     def handle_recognize_complete(self, result, recomplete=False):
@@ -448,7 +447,7 @@ class NotePadApp(App):
             # Hacky way to change note color to black once it's registered.
             self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
-            action = (Action.NOTE, note)
+            action = (Action.NOTE, [note])
         elif recognized_name.endswith("rest"):
             points = np.array(sum(g.get_vectors(), []))
 
@@ -463,9 +462,9 @@ class NotePadApp(App):
             # Hacky way to change rest color to black once it's registered.
             self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
-            action = (Action.NOTE, note)
+            action = (Action.NOTE, [note])
 
-        self.populate_gesture_action(g, action)
+        self.populate_gesture_action(g.id, action)
 
         self.surface.add_widget(g._result_label)
 
@@ -626,8 +625,8 @@ class NotePadApp(App):
                 Line(points=np_vectors.flat, group=group_id, width=2)
 
     def clear(self):
-        self.undo_history = []
-        self.redo_history = []
+        self.undo_melody_history = []
+        self.redo_melody_history = []
         self.notes = []
         self.gesture_to_action = {}
         self.surface._gestures = []
@@ -636,9 +635,9 @@ class NotePadApp(App):
 
     def undo(self):
         gesture_id = self.surface.undo()
+
         if gesture_id:
-            if self.gesture_to_action.get(gesture_id, None):
-                self.gesture_to_action[gesture_id] = None
+            populate_gesture_action(gesture_id, None)
 
     def redo(self):
         self.surface.redo()
@@ -795,9 +794,8 @@ class NotePadApp(App):
             Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)
         ]
 
-        # TODO(mergen): Fix this.
-        self.notes += notes
         self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
+        self.populate_gesture_action(group_id, notes)
 
     def transcribe_melody(self, audio, sr):
         if not is_desktop:
@@ -821,9 +819,9 @@ class NotePadApp(App):
         notes = [
             Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)
         ]
-        self.notes += notes
+
         self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
-        print("melody", melody)
+        self.populate_gesture_action(group_id, notes)
 
     def beats_to_ticks(self, beats):
         ticks = self.time_scale / (self.tempo / 60) * beats
@@ -866,8 +864,8 @@ class NotePadApp(App):
         self.fs.program_select(1, self.sfid, 0, 0)
         self.synthID = self.seq.register_fluidsynth(self.fs)
 
-        self.undo_history = []
-        self.redo_history = []
+        self.undo_melody_history = []
+        self.redo_melody_history = []
         self.group_id_counter = 0
         self.record_counter = 0
 
