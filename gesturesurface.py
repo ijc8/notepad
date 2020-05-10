@@ -15,7 +15,6 @@ example.
 '''
 __all__ = ('StrokeSurface', 'StrokeContainer')
 
-from random import random
 from kivy.event import EventDispatcher
 from kivy.clock import Clock
 from kivy.vector import Vector
@@ -24,6 +23,10 @@ from kivy.graphics import Color, Line, Rectangle
 from kivy.properties import (NumericProperty, BooleanProperty,
                              DictProperty, ListProperty)
 from colorsys import hsv_to_rgb
+
+import numpy as np
+
+import util
 
 
 # Let's group gestures at a later time.
@@ -114,6 +117,7 @@ class StrokeSurface(FloatLayout):
     color = ListProperty([0., 0., 0.])
     draw_bbox = BooleanProperty(True)
     bbox_alpha = NumericProperty(0.1)
+    erase_threshold = 2
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -122,6 +126,7 @@ class StrokeSurface(FloatLayout):
         self.undo_history = []
         self.redo_history = []
         self.register_event_type('on_canvas_change')
+        self._mode = "write"
 
     def get_vectors(self):
         vecs = []
@@ -140,13 +145,17 @@ class StrokeSurface(FloatLayout):
 # -----------------------------------------------------------------------------
 # Touch Events
 # -----------------------------------------------------------------------------
-    def on_touch_down(self, touch):
+    def on_touch_down(self, touch, mode):
         "When a new touch is registered, we start a new stroke for it."
         # If the touch originates outside the surface, ignore it.
         if not self.collide_point(touch.x, touch.y):
             return
         touch.grab(self)
-        self.init_stroke(touch)
+        self._mode = mode
+        if mode == "write":
+            self.init_stroke(touch)
+        else:
+            self.erase(touch.x, touch.y)
         return True
 
     def on_touch_move(self, touch):
@@ -156,16 +165,20 @@ class StrokeSurface(FloatLayout):
         if not self.collide_point(touch.x, touch.y):
             return
 
-        # Retrieve the StrokeContainer object that handles this touch.
-        s = self.get_stroke(touch)
-        s.update_bbox(touch)
-        # Add the new point to gesture stroke list and update the canvas line
-        s._strokes[str(touch.uid)].points += (touch.x, touch.y)
+        if self._mode == "write":
+            # Retrieve the StrokeContainer object that handles this touch.
+            s = self.get_stroke(touch)
+            s.update_bbox(touch)
+            # Add the new point to gesture stroke list and update the canvas line
+            s._strokes[str(touch.uid)].points += (touch.x, touch.y)
 
-        # Draw the gesture bounding box; if it is a single press that
-        # does not trigger a move event, we would miss it otherwise.
-        if self.draw_bbox:
-            self._update_canvas_bbox(s)
+            # Draw the gesture bounding box; if it is a single press that
+            # does not trigger a move event, we would miss it otherwise.
+            if self.draw_bbox:
+                self._update_canvas_bbox(s)
+        else:
+            self.erase(touch.x, touch.y)
+
         return True
 
     def on_touch_up(self, touch):
@@ -173,10 +186,23 @@ class StrokeSurface(FloatLayout):
             return
         touch.ungrab(self)
 
-        s = self.get_stroke(touch)
-        self.clear_redo_history()
-        self.undo_history.append(s)
+        if self._mode == "write":
+            s = self.get_stroke(touch)
+            self.clear_redo_history()
+            self.undo_history.append(s)
         self.dispatch('on_canvas_change')
+
+    def erase(self, x, y):
+        for idx, stroke in enumerate(self._strokes):
+            bb = [stroke.bbox[k] for k in ('minx', 'miny', 'maxx', 'maxy')]
+            if not util.is_bbox_intersecting_helper(bb, x, y):
+                continue
+            dist = np.min(np.linalg.norm(np.array(stroke.get_vectors()) - np.array([x, y])[None, :], axis=0))
+            if dist < self.erase_threshold:
+                self.canvas.remove_group(stroke.id)
+                # TODO: put it on undo history, once we add 're-adding' ability to undo.
+                self.redo_history.append(stroke)
+                del self._strokes[idx]
 
 # -----------------------------------------------------------------------------
 # Stroke related methods

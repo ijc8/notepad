@@ -153,7 +153,8 @@ class NotePadState:
             y = points[:,1].mean()
             staff = min((0, 1), key=lambda s: np.abs(surface.get_height(s, 4) - y))
             # TODO: add real Staff class instead of doing this ad-hoc stuff.
-            self.fs.program_select(staff, self.sfid, *instruments[instrument])
+            # TODO: fix instrument selection
+            # self.fs.program_select(staff, self.sfid, *instruments[instrument])
         elif recognized_name.startswith(chord_prefix):
             chord = recognized_name[len(chord_prefix):]
             x, y = points.mean(axis=0)
@@ -248,22 +249,16 @@ class NotePadSurface(StrokeSurface):
     def on_touch_down(self, touch):
         if self.mode == "pan":
             return False  # let ScatterPlane handle it
-        elif self.mode == "erase":
-            return True  # for now, eat the event and do nothing
-        return super().on_touch_down(touch)
+        return super().on_touch_down(touch, self.mode)
 
     def on_touch_move(self, touch):
         if self.mode == "pan":
             return False  # let ScatterPlane handle it
-        elif self.mode == "erase":
-            return True  # for now, eat the event and do nothing
         return super().on_touch_move(touch)
 
     def on_touch_up(self, touch):
         if self.mode == "pan":
             return False  # let ScatterPlane handle it
-        elif self.mode == "erase":
-            return True  # for now, eat the event and do nothing
         return super().on_touch_up(touch)
 
     # TODO: move to util?
@@ -397,19 +392,12 @@ class StrokeGroup:
         self.miny = np.min(all_points[:, 1])
         self.maxy = np.max(all_points[:, 1])
 
-    def is_bbox_intersecting_helper(self, x, y):
-        margin = self.bbox_margin
-        minx = self.minx - margin
-        miny = self.miny - margin
-        maxx = self.maxx + margin
-        maxy = self.maxy + margin
-        return minx <= x <= maxx and miny <= y <= maxy
-
     def is_intersecting(self, other):
-        return self.is_bbox_intersecting_helper(other.minx, other.miny) or \
-               self.is_bbox_intersecting_helper(other.minx, other.maxy) or \
-               self.is_bbox_intersecting_helper(other.maxx, other.miny) or \
-               self.is_bbox_intersecting_helper(other.maxx, other.maxy)
+        bb = (self.minx, self.miny, self.maxx, self.maxy)
+        return util.is_bbox_intersecting_helper(bb, other.minx, other.miny, self.bbox_margin) or \
+               util.is_bbox_intersecting_helper(bb, other.minx, other.maxy, self.bbox_margin) or \
+               util.is_bbox_intersecting_helper(bb, other.maxx, other.miny, self.bbox_margin) or \
+               util.is_bbox_intersecting_helper(bb, other.maxx, other.maxy, self.bbox_margin)
 
 
 class NotePadApp(App):

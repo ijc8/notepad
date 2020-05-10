@@ -84,3 +84,12 @@ def align_note(points, is_note, value, line_spacing):
         return points - points.mean(axis=0) + height / 2
     else:
         return points - points.mean(axis=0)
+
+
+def is_bbox_intersecting_helper(bb, x, y, margin=0):
+    minx, miny, maxx, maxy = bb
+    minx -= margin
+    miny -= margin
+    maxx += margin
+    maxy += margin
+    return minx <= x <= maxx and miny <= y <= maxy
