@@ -300,6 +300,7 @@ class GestureSurface(FloatLayout):
         self.register_event_type('on_gesture_cleanup')
         self.register_event_type('on_gesture_discard')
         self.register_event_type('on_gesture_merge')
+        self.register_event_type('on_gesture_touch_up')
 
         self.undo_history = []
         self.redo_history = []
@@ -399,13 +400,15 @@ class GestureSurface(FloatLayout):
                     self.dispatch('on_gesture_merge', g)
                     del gest[idx]
 
-        self.redo_history = []
+        self.clear_redo_history()
         self.undo_history.append(str(touch.uid))
 
         # dispatch later only if we have a window
         if self.temporal_window > 0:
             Clock.schedule_once(self._complete_dispatcher,
                                     self.temporal_window)
+
+        self.dispatch('on_gesture_touch_up')
 
 # -----------------------------------------------------------------------------
 # Gesture related methods
@@ -493,6 +496,9 @@ class GestureSurface(FloatLayout):
 
     def clear_history(self):
         self.undo_history = []
+        self.redo_history = []
+
+    def clear_redo_history(self):
         self.redo_history = []
 
     def init_stroke(self, g, touch):
@@ -669,4 +675,7 @@ class GestureSurface(FloatLayout):
         pass
 
     def on_gesture_merge(self, *l):
+        pass
+
+    def on_gesture_touch_up(self, *l):
         pass

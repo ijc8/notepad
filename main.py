@@ -270,6 +270,10 @@ class Action(Enum):
     NONE = 1
     NOTE = 2
 
+class HISTORY(Enum):
+    TOUCH = 1
+    TRANSCRIBE = 2
+
 class NotePadApp(App):
     debug = BooleanProperty(False)
     playing = BooleanProperty(False)
@@ -289,6 +293,18 @@ class NotePadApp(App):
         if hasattr(g, "_result_label"):
             self.surface.remove_widget(g._result_label)
 
+    def handle_gesture_touch_up(self, surface, *l):
+        self.undo_history_types.append(HISTORY.TOUCH)
+        self.redo_history_types = []
+        self.surface.clear_redo_history()
+        self.clear_melody_redo_history()
+
+    def clear_melody_redo_history(self):
+        self.redo_melody_history = []
+
+    def clear_melody_history(self):
+        self.undo_melody_history = []
+        self.redo_melody_history = []
 
     def handle_gesture_discard(self, surface, g, *l):
         # Don't bother creating Label if it's not going to be drawn
@@ -314,8 +330,6 @@ class NotePadApp(App):
                 i0.rgba = rgba
 
     def handle_gesture_complete(self, surface, g, *l):
-        print("handle_gesture_complete")
-        print(len(list(g._strokes.items())))
         dollarResult = self.recognizer.recognize(
             util.convert_to_dollar(g.get_vectors())
         )
@@ -324,14 +338,51 @@ class NotePadApp(App):
 
         self.handle_recognize_complete(result)
 
-    def add_to_history_for_undo_redo_with_group_id(self, group_id, notes):
-        self.redo_melody_history = []
+    def add_to_history_for_transcribe(self, group_id, notes):
+        self.undo_history_types.append(HISTORY.TRANSCRIBE)
+        self.redo_history_types = []
+        self.surface.clear_redo_history()
+        self.clear_melody_redo_history()
+
         group = list(self.surface.canvas.get_group(group_id))
         gesture_vec = []
         for line in group:
             if isinstance(line, Line):
                 gesture_vec.append((group_id, line.points))
         self.undo_melody_history.append((gesture_vec, notes))
+
+    def redo_melody(self):
+        if len(self.redo_melody_history) == 0:
+            return
+        history_val = self.redo_melody_history[-1]
+        self.redo_melody_history.pop()
+
+        gesture_vec, notes = history_val
+        for val in gesture_vec:
+            group_id, vectors = val
+            np_vectors = np.array(vectors)
+            with self.surface.canvas:
+                Color(rgba=BLACK)
+                Line(points=np_vectors.flat, group=group_id, width=2)
+
+        self.populate_gesture_action(group_id, (Action.NOTE, notes))
+        self.undo_melody_history.append(history_val)
+
+    def undo_melody(self):
+        if len(self.undo_melody_history) == 0:
+            return
+        history_val = self.undo_melody_history[-1]
+        self.undo_melody_history.pop()
+
+        gesture_vec, notes = history_val
+        for val in gesture_vec:
+            group_id, vectors = val
+            self.surface.canvas.remove_group(group_id)
+
+        self.populate_gesture_action(group_id, None)
+        self.redo_melody_history.append(history_val)
+
+
 
     def populate_gesture_action(self, gesture_id, action):
         self.gesture_to_action[gesture_id] = action
@@ -625,22 +676,45 @@ class NotePadApp(App):
                 Line(points=np_vectors.flat, group=group_id, width=2)
 
     def clear(self):
-        self.undo_melody_history = []
-        self.redo_melody_history = []
+
+        self.undo_history_types = []
+        self.redo_history_types = []
+
         self.notes = []
         self.gesture_to_action = {}
         self.surface._gestures = []
         self.surface.canvas.clear()
         self.surface.clear_history()
+        self.clear_melody_history()
 
     def undo(self):
-        gesture_id = self.surface.undo()
+        if len(self.undo_history_types) == 0:
+            return
 
-        if gesture_id:
-            populate_gesture_action(gesture_id, None)
+        history_type = self.undo_history_types[-1]
+        self.undo_history_types.pop()
+
+        self.redo_history_types.append(history_type)
+
+        if (history_type == HISTORY.TOUCH):
+            gesture_id = self.surface.undo()
+            if gesture_id:
+                self.populate_gesture_action(gesture_id, None)
+        elif (history_type == HISTORY.TRANSCRIBE):
+            self.undo_melody()
 
     def redo(self):
-        self.surface.redo()
+        if len(self.redo_history_types) == 0:
+            return
+
+        history_type = self.redo_history_types[-1]
+        self.redo_history_types.pop()
+        self.undo_history_types.append(history_type)
+
+        if (history_type == HISTORY.TOUCH):
+            self.surface.redo()
+        elif (history_type == HISTORY.TRANSCRIBE):
+            self.redo_melody()
 
     def update_record_signifiers(self, idx):
         idx -= 1  # fluidsynth scheduler workaround
@@ -794,8 +868,8 @@ class NotePadApp(App):
             Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)
         ]
 
-        self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
-        self.populate_gesture_action(group_id, notes)
+        self.add_to_history_for_transcribe(group_id, notes)
+        self.populate_gesture_action(group_id, (Action.NOTE, notes))
 
     def transcribe_melody(self, audio, sr):
         if not is_desktop:
@@ -820,8 +894,8 @@ class NotePadApp(App):
             Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)
         ]
 
-        self.add_to_history_for_undo_redo_with_group_id(group_id, notes)
-        self.populate_gesture_action(group_id, notes)
+        self.add_to_history_for_transcribe(group_id, notes)
+        self.populate_gesture_action(group_id, (Action.NOTE, notes))
 
     def beats_to_ticks(self, beats):
         ticks = self.time_scale / (self.tempo / 60) * beats
@@ -866,6 +940,9 @@ class NotePadApp(App):
 
         self.undo_melody_history = []
         self.redo_melody_history = []
+        self.undo_history_types = []
+        self.redo_history_types = []
+
         self.group_id_counter = 0
         self.record_counter = 0
 
@@ -885,6 +962,7 @@ class NotePadApp(App):
         self.surface.bind(on_gesture_complete=self.handle_gesture_complete)
         self.surface.bind(on_gesture_cleanup=self.handle_gesture_cleanup)
         self.surface.bind(on_gesture_merge=self.handle_gesture_merge)
+        self.surface.bind(on_gesture_touch_up=self.handle_gesture_touch_up)
 
         self.manager.add_widget(self.surface_screen)
 
