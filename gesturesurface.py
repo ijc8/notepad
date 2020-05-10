@@ -183,6 +183,10 @@ class GestureContainer(EventDispatcher):
         self._update_time = Clock.get_time()
         del self._strokes[stroke_uid]
 
+    def _add_stroke(self, stroke_uid, stroke):
+        self._update_time = Clock.get_time()
+        self._strokes[stroke_uid] = stroke
+
     def is_empty(self):
         return len(self._strokes) == 0
 
@@ -295,6 +299,8 @@ class GestureSurface(FloatLayout):
         self.register_event_type('on_gesture_complete')
         self.register_event_type('on_gesture_cleanup')
         self.register_event_type('on_gesture_discard')
+        self.register_event_type('on_gesture_merge')
+
         self.undo_history = []
         self.redo_history = []
 
@@ -390,6 +396,7 @@ class GestureSurface(FloatLayout):
             for idx, g in enumerate(gest):
                 # Gesture is part of another gesture, just delete it
                 if g.was_merged:
+                    self.dispatch('on_gesture_merge', g)
                     del gest[idx]
 
         self.redo_history = []
@@ -434,15 +441,21 @@ class GestureSurface(FloatLayout):
         stroke_uid = self.undo_history[-1]
         self.undo_history.pop()
 
-        g = self.get_gesture_from_id(stroke_uid)
+        g = self.get_gesture_from_stroke_uid(stroke_uid)
         gesture_id = g.id
         self.canvas.remove_group(gesture_id)
+
+
+        self.redo_history.append((stroke_uid, gesture_id, g._strokes[stroke_uid]))
+
+
         g.remove_stroke(stroke_uid)
+
 
         if g.is_empty():
             for idx, other in enumerate(self._gestures):
                 if (other == g):
-                    del self._gestures[idx]
+                    # del self._gestures[idx]
                     self.dispatch('on_gesture_cleanup', g)
             return gesture_id
         else:
@@ -455,6 +468,28 @@ class GestureSurface(FloatLayout):
             self.dispatch('on_gesture_complete', g)
             Clock.schedule_once(self._cleanup, self.draw_timeout)
             return None
+
+    def redo(self):
+        if len(self.redo_history) == 0:
+            return
+
+        (stroke_uid, gesture_id, stroke) = self.redo_history[-1]
+
+        self.redo_history.pop()
+        self.undo_history.append(stroke_uid)
+
+        g = self.get_gesture_from_gesture_id(gesture_id)
+        g._add_stroke(stroke_uid, stroke)
+        self.canvas.remove_group(gesture_id)
+
+        col = g.color
+        for (_, line) in g._strokes.items():
+            canvas_add = self.canvas.add
+            canvas_add(Color(col[0], col[1], col[2], mode='rgb', group=g.id))
+            canvas_add(line)
+
+        self.dispatch('on_gesture_complete', g)
+        Clock.schedule_once(self._cleanup, self.draw_timeout)
 
     def clear_history(self):
         self.undo_history = []
@@ -491,11 +526,17 @@ class GestureSurface(FloatLayout):
                 return g
         raise Exception('get_gesture() failed to identify ' + str(touch.uid))
 
-    def get_gesture_from_id(self, gesture_id):
+    def get_gesture_from_stroke_uid(self, stroke_uid):
         for g in self._gestures:
-            if gesture_id in g._strokes:
+            if stroke_uid in g._strokes:
                 return g
-        raise Exception('get_gesture_from_id() failed to identify ' + gesture_id)
+        raise Exception('get_gesture_from_stroke_uid() failed to identify ' + stroke_uid)
+
+    def get_gesture_from_gesture_id(self, gesture_id):
+        for g in self._gestures:
+            if gesture_id == g.id:
+                return g
+        raise Exception('get_gesture_from_stroke_uid() failed to identify ' + stroke_uid)
 
 
     def merge_gestures(self, g, other):
@@ -602,7 +643,6 @@ class GestureSurface(FloatLayout):
             Clock.schedule_once(self._cleanup, timeout)
 
     def _cleanup(self, dt):
-        print("_cleanup")
         '''This method is scheduled from _complete_dispatcher to clean up the
         canvas and internal gesture list after a gesture is completed.'''
         m = UNDERSHOOT_MARGIN
@@ -626,4 +666,7 @@ class GestureSurface(FloatLayout):
         pass
 
     def on_gesture_cleanup(self, *l):
+        pass
+
+    def on_gesture_merge(self, *l):
         pass

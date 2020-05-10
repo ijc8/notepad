@@ -281,6 +281,10 @@ class NotePadApp(App):
     def handle_gesture_cleanup(self, surface, g, *l):
         self.remove_label(g)
 
+    def handle_gesture_merge(self, surface, g, *l):
+        self.remove_label(g)
+        self.populate_gesture_action(g, None)
+
     def remove_label(self, g):
         if hasattr(g, "_result_label"):
             self.surface.remove_widget(g._result_label)
@@ -310,6 +314,8 @@ class NotePadApp(App):
                 i0.rgba = rgba
 
     def handle_gesture_complete(self, surface, g, *l):
+        print("handle_gesture_complete")
+        print(len(list(g._strokes.items())))
         dollarResult = self.recognizer.recognize(
             util.convert_to_dollar(g.get_vectors())
         )
@@ -340,6 +346,8 @@ class NotePadApp(App):
                 )
             )
         )
+
+        print(self.notes)
 
         self.notes.sort(key=lambda note: note.x)
 
@@ -633,26 +641,7 @@ class NotePadApp(App):
                 self.gesture_to_action[gesture_id] = None
 
     def redo(self):
-        if len(self.redo_history) == 0:
-            return
-
-        history_val = self.redo_history[-1]
-        self.redo_history.pop()
-
-        gesture_vec, notes = history_val
-
-        for val in gesture_vec:
-            group_id, vectors = val
-            np_vectors = np.array(vectors)
-            with self.surface.canvas:
-                Color(rgba=BLACK)
-                Line(points=np_vectors.flat, group=group_id, width=2)
-
-        for note in notes:
-            self.notes.append(note)
-        self.notes.sort(key=lambda note: note.x)
-
-        self.undo_history.append(history_val)
+        self.surface.redo()
 
     def update_record_signifiers(self, idx):
         idx -= 1  # fluidsynth scheduler workaround
@@ -897,6 +886,7 @@ class NotePadApp(App):
         self.surface.bind(on_gesture_discard=self.handle_gesture_discard)
         self.surface.bind(on_gesture_complete=self.handle_gesture_complete)
         self.surface.bind(on_gesture_cleanup=self.handle_gesture_cleanup)
+        self.surface.bind(on_gesture_merge=self.handle_gesture_merge)
 
         self.manager.add_widget(self.surface_screen)
 
