@@ -295,6 +295,8 @@ class GestureSurface(FloatLayout):
         self.register_event_type('on_gesture_complete')
         self.register_event_type('on_gesture_cleanup')
         self.register_event_type('on_gesture_discard')
+        self.undo_history = []
+        self.redo_history = []
 
 # -----------------------------------------------------------------------------
 # Touch Events
@@ -315,7 +317,6 @@ class GestureSurface(FloatLayout):
 
         # We now belong to a new gesture; start a new stroke.
         self.init_stroke(g, touch)
-
         return True
 
     def on_touch_move(self, touch):
@@ -391,6 +392,9 @@ class GestureSurface(FloatLayout):
                 if g.was_merged:
                     del gest[idx]
 
+        self.redo_history = []
+        self.undo_history.append(str(touch.uid))
+
         # dispatch later only if we have a window
         if self.temporal_window > 0:
             Clock.schedule_once(self._complete_dispatcher,
@@ -424,9 +428,15 @@ class GestureSurface(FloatLayout):
         self._gestures.append(g)
         return g
 
-    def remove(self, gesture_id, stroke_uid):
+    def undo(self):
+        if len(self.undo_history) == 0:
+            return
+        stroke_uid = self.undo_history[-1]
+        self.undo_history.pop()
+
+        g = self.get_gesture_from_id(stroke_uid)
+        gesture_id = g.id
         self.canvas.remove_group(gesture_id)
-        g = self.get_gesture_from_id(gesture_id)
         g.remove_stroke(stroke_uid)
 
         if g.is_empty():
@@ -434,7 +444,7 @@ class GestureSurface(FloatLayout):
                 if (other == g):
                     del self._gestures[idx]
                     self.dispatch('on_gesture_cleanup', g)
-            return True
+            return gesture_id
         else:
             col = g.color
             for (_, line) in g._strokes.items():
@@ -444,7 +454,11 @@ class GestureSurface(FloatLayout):
 
             self.dispatch('on_gesture_complete', g)
             Clock.schedule_once(self._cleanup, self.draw_timeout)
-            return False
+            return None
+
+    def clear_history(self):
+        self.undo_history = []
+        self.redo_history = []
 
     def init_stroke(self, g, touch):
         points = [touch.x, touch.y]
@@ -588,6 +602,7 @@ class GestureSurface(FloatLayout):
             Clock.schedule_once(self._cleanup, timeout)
 
     def _cleanup(self, dt):
+        print("_cleanup")
         '''This method is scheduled from _complete_dispatcher to clean up the
         canvas and internal gesture list after a gesture is completed.'''
         m = UNDERSHOOT_MARGIN

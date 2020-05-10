@@ -22,6 +22,7 @@ from kivy.properties import (
     ObjectProperty,
 )
 from kivy.utils import platform
+from enum import Enum
 
 # Other external libraries
 import numpy as np
@@ -265,6 +266,9 @@ class Note:
     def __repr__(self):
         return f"Note({self.pitch}, {self.duration}, {self.x}, {self.staff})"
 
+class Action(Enum):
+    NONE = 1
+    NOTE = 2
 
 class NotePadApp(App):
     debug = BooleanProperty(False)
@@ -275,8 +279,12 @@ class NotePadApp(App):
         self.manager.current = "database"
 
     def handle_gesture_cleanup(self, surface, g, *l):
+        self.remove_label(g)
+
+    def remove_label(self, g):
         if hasattr(g, "_result_label"):
-            surface.remove_widget(g._result_label)
+            self.surface.remove_widget(g._result_label)
+
 
     def handle_gesture_discard(self, surface, g, *l):
         # Don't bother creating Label if it's not going to be drawn
@@ -284,6 +292,9 @@ class NotePadApp(App):
             return
 
         text = "[b]Discarded:[/b] Not enough input"
+
+        self.remove_label(g)
+
         g._result_label = Label(
             text=text,
             markup=True,
@@ -302,9 +313,7 @@ class NotePadApp(App):
         dollarResult = self.recognizer.recognize(
             util.convert_to_dollar(g.get_vectors())
         )
-
         result = util.ResultWrapper(dollarResult)
-
         result._gesture_obj = g
 
         self.handle_recognize_complete(result)
@@ -318,16 +327,23 @@ class NotePadApp(App):
                 gesture_vec.append((group_id, line.points))
         self.undo_history.append((gesture_vec, notes))
 
-    def add_to_history_for_undo_redo(self, gesture):
-        self.redo_history = []
-        self.undo_history.append(gesture.id)
+    def populate_gesture_action(self, gesture, action):
+        self.gesture_to_action[gesture.id] = action
 
-    def populate_note(self, gesture, note):
-        self.gesture_to_note[gesture.id] = note
-        self.notes = list(filter(lambda x: x, self.gesture_to_note.values()))
+        # Update notes
+        self.notes = list(
+            map(
+                lambda action: action[1],
+                filter(
+                    lambda action: (action and action[0] == Action.NOTE),
+                    self.gesture_to_action.values()
+                )
+            )
+        )
+
         self.notes.sort(key=lambda note: note.x)
 
-    def handle_recognize_complete(self, result, *l):
+    def handle_recognize_complete(self, result, recomplete=False):
         self.history.add_recognizer_result(result)
 
         # Don't bother creating Label if it's not going to be drawn
@@ -336,8 +352,10 @@ class NotePadApp(App):
 
         best = result.best
         g = result._gesture_obj
+        action = None
+        instrument_prefix = "instrument-"
+        chord_prefix = "chord-"
 
-        self.add_to_history_for_undo_redo(g)
         recognized_name = best["name"]
         if self.is_unrecognized_gesture(best["name"], g):
             # No match or ignored. Leave it onscreen in case it's for the user's benefit.
@@ -351,9 +369,11 @@ class NotePadApp(App):
             # with open(filename, "wb") as data_file:
             #    pickle.dump(g.get_vectors(), data_file)
 
-        text = "[b]%s[/b]" % (recognized_name)
+        self.remove_label(g)
 
+        text = "[b]%s[/b]" % (recognized_name)
         text = f"[color=#000000]{text}[/color]"
+
         g._result_label = Label(
             text=text,
             markup=True,
@@ -361,9 +381,7 @@ class NotePadApp(App):
             center=(g.bbox["minx"], g.bbox["miny"]),
         )
 
-        note = None
-        instrument_prefix = "instrument-"
-        chord_prefix = "chord-"
+
         if recognized_name == "trebleclef" or recognized_name == "barline":
             self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
@@ -422,6 +440,7 @@ class NotePadApp(App):
             # Hacky way to change note color to black once it's registered.
             self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
+            action = (Action.NOTE, note)
         elif recognized_name.endswith("rest"):
             points = np.array(sum(g.get_vectors(), []))
 
@@ -436,8 +455,9 @@ class NotePadApp(App):
             # Hacky way to change rest color to black once it's registered.
             self.set_color_rgba(g.id, BLACK)
             g._cleanup_time = -1
+            action = (Action.NOTE, note)
 
-        self.populate_note(g, note)
+        self.populate_gesture_action(g, action)
 
         self.surface.add_widget(g._result_label)
 
@@ -471,7 +491,7 @@ class NotePadApp(App):
                 return
             self.loopHelper()
 
-        t = int(self.playback())
+        t = int(self.play())
         callbackID = self.seq.register_client(
             name="loop_callback", callback=loop_callback,
         )
@@ -497,6 +517,7 @@ class NotePadApp(App):
         self.playing = True
         stave_times = [0, 0]
         self.play_start_tick = self.seq.get_tick()
+
         for note in self.notes:
             t_duration = self.beats_to_ticks(note.duration)
             time = stave_times[note.staff] - self.play_pos
@@ -600,20 +621,16 @@ class NotePadApp(App):
         self.undo_history = []
         self.redo_history = []
         self.notes = []
-        self.gesture_to_note = {}
+        self.gesture_to_action = {}
         self.surface._gestures = []
         self.surface.canvas.clear()
+        self.surface.clear_history()
 
     def undo(self):
-        if len(self.undo_history) == 0:
-            return
-        gesture_id = self.undo_history[-1]
-        self.undo_history.pop()
-        g = self.surface.get_gesture_from_id(gesture_id)
-        (stroke_uid, _) = g.get_last_stroke()
-        needs_to_remove_note = self.surface.remove(gesture_id, stroke_uid)
-        if needs_to_remove_note:
-            self.populate_note(g, None)
+        gesture_id = self.surface.undo()
+        if gesture_id:
+            if self.gesture_to_action.get(gesture_id, None):
+                self.gesture_to_action[gesture_id] = None
 
     def redo(self):
         if len(self.redo_history) == 0:
@@ -834,7 +851,7 @@ class NotePadApp(App):
         self.play_pos = 0
         self.notes = []
         self.staff_chords = [[], []]
-        self.gesture_to_note = {}
+        self.gesture_to_action = {}
         self.seq = fluidsynth.Sequencer(time_scale=self.time_scale)
         self.fs = fluidsynth.Synth()
         self.debug = False
