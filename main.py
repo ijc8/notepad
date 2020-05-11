@@ -6,6 +6,7 @@ import itertools
 # Kivy
 from kivy.core.window import Window
 from kivy.app import App
+from kivy.clock import Clock
 from kivy.uix.button import Button
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.boxlayout import BoxLayout
@@ -616,8 +617,7 @@ class NotePadApp(App):
             # Bizarrely, this cannot accept the value 0 (it's replaced by None).
             update_callback = self.seq.register_client(
                 name=f"record_update_callback",
-                callback=lambda a, b, c, idx: print("hmm", a, b, c, idx)
-                or self.update_record_signifiers(idx),
+                callback=lambda a, b, c, idx: Clock.schedule_once(lambda dt: self.update_record_signifiers(idx)),
                 data=i + 1,
             )
             self.seq.timer(time=time, dest=update_callback, absolute=False)
@@ -635,7 +635,7 @@ class NotePadApp(App):
             record_thread.join()
             for color in self.surface_screen.canvas.after.get_group("recording"):
                 color.a = 0
-            callback(data, sr)
+            Clock.schedule_once(lambda dt: callback(data, sr))
 
         finish_callback = self.seq.register_client(
             name="record_finish_callback", callback=reset_record_signifiers
