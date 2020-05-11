@@ -186,14 +186,14 @@ class StrokeSurface(FloatLayout):
         "Add a new stroke to the Surface (as if the user drew it)."
         id = f'artificial touch {self.artifical_id}'
         self.artifical_id += 1
-        line = Line(points=points,
+        line = Line(points=points.flatten().tolist(),
                     width=self.line_width,
                     group=id)
         s = StrokeContainer(line)
         self._strokes[id] = s
         col = s.color
         self.canvas.add(Color(col[0], col[1], col[2], mode='rgb', group=id))
-        self.canvas.add(s)
+        self.canvas.add(line)
         self.dispatch('on_canvas_change')
 
     def erase(self, x, y):

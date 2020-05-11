@@ -30,13 +30,15 @@ import fluidsynth
 import wave
 import pickle
 import copy
+import cProfile
+
 
 # TODO: mobile support for recording, transcription
 is_desktop = platform in ("windows", "macosx", "linux")
 if is_desktop:
     import pyaudio
 
-from dollarpy import Recognizer, Template, Point
+from dollarpy import Recognizer
 
 # Local libraries
 from historymanager import GestureHistoryManager
@@ -51,6 +53,7 @@ if is_desktop:
 
 # These are in terms of number of beats.
 durations = {"eighth": 1 / 2, "quarter": 1, "half": 2, "whole": 4}
+reverse_durations = {value: key for key, value in durations.items()}
 
 instruments = {"piano": (0, 0), "guitar": (0, 25), "bass": (0, 35), "drum": (128, 0)}
 
@@ -264,14 +267,8 @@ class NotePadSurface(StrokeSurface):
     # TODO: move to util?
     # also, perhaps we should get these directly from the gesture database.
     def get_note_gesture(self, value, pitch):
-        gesture = []
-        for name, duration in durations.items():
-            if duration == value:
-                filename = name + ("note" if pitch else "rest")
-                with open("ink/" + filename, "rb") as data_file:
-                    gesture = pickle.load(data_file)
-                return gesture
-        return gesture
+        gesture = self.gdict[reverse_durations[value] + ("note" if pitch else "rest")][0]
+        return [[p.x, p.y] for p in gesture]
 
     def get_y_from_pitch(self, staff_number, pitch):
         # Special case: put rests in the middle of the staff.
@@ -329,18 +326,14 @@ class NotePadSurface(StrokeSurface):
                 last_point = next_point
             return x_start
 
-        gesture = self.get_note_gesture(value, pitch)
-        points = np.array(sum(gesture, []))
+        points = self.get_note_gesture(value, pitch)
         bar_size = 12 * self.line_spacing
-        note_padding = (bar_size * (value / 4.0)) / 2
+        note_padding = (bar_size * (value / 4.0))
         points = util.align_note(points, pitch, value, self.line_spacing)
         new_center_x = x_start + note_padding
         points += (new_center_x, self.get_y_from_pitch(staff_number, pitch))
 
-        self.surface.add_stroke(points)
-        # with self.canvas:
-        #     Color(rgba=BLACK)
-        #     Line(points=points.flat, group=group_id, width=self.line_width)
+        self.add_stroke(points)
 
         return new_center_x + note_padding
 
@@ -442,7 +435,7 @@ class NotePadApp(App):
             result = util.ResultWrapper(dollarResult)
             result._gesture_obj = g
 
-            self.history.add_recognizer_result(result)
+            # self.history.add_recognizer_result(result)
             self.state.handle_recognition_result(self.surface, result)
 
     def start_loop(self):
@@ -827,6 +820,7 @@ class NotePadApp(App):
 
         # Database is the list of gesture templates in Recognizer
         database = GestureDatabase(recognizer=self.recognizer)
+        self.surface.gdict = database.gdict
         database_screen = Screen(name="database")
         database_screen.add_widget(database)
         self.database = database
@@ -853,14 +847,10 @@ class NotePadApp(App):
             for thing in ("note", "rest"):
                 entry = TutorialEntry(name=f"{duration} {thing}")
                 tutorial.ids.notegrid.add_widget(entry)
-                points = np.array(
-                    sum(self.surface.get_note_gesture(value, int(thing == "note")), [])
-                )
+                points = np.array(self.surface.get_note_gesture(value, int(thing == "note")))
                 # points = np.array([[p.x, p.y] for p in database.gdict[duration + thing][-1]])
                 points = util.align_note(points, (thing == "note"), value, 15)
-                entry.ids.gesture.canvas.get_group("gesture")[0].points = list(
-                    points.flat
-                )
+                entry.ids.gesture.canvas.get_group("gesture")[0].points = list(points.flat)
 
         tutorial_screen = Screen(name="tutorial")
         tutorial_screen.add_widget(tutorial)
@@ -894,4 +884,8 @@ class NotePadApp(App):
 
 
 if __name__ in ("__main__", "__android__"):
+    profile = cProfile.Profile()
+    profile.enable()
     NotePadApp().run()
+    profile.disable()
+    profile.dump_stats('notepad.profile')
