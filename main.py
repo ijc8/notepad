@@ -137,7 +137,7 @@ class NotePadState:
         print(recognized_name)
         points = np.array(sum(g.strokes, []))
 
-        if recognized_name == "trebleclef" or recognized_name == "barline":
+        if recognized_name == "trebleclef" or recognized_name == "bassclef" or recognized_name == "barline":
             # self.set_color_rgba(g.id, BLACK)
             pass
         elif recognized_name.startswith(instrument_prefix):
@@ -418,8 +418,6 @@ class NotePadApp(App):
             (a, b) = val
             a.merge(b)
             groups.remove(b)
-
-        print(len(groups))
 
         for g in groups:
             result = self.recognition_memo.get(g.ids, None)

@@ -252,7 +252,7 @@ class StrokeSurface(FloatLayout):
         id = self.get_id(touch)
         if self._mode == "write":
             s = self._strokes[id]
-            if len(s._stroke.points) < 2 or not (s.width > 5 or s.height > 5):
+            if len(s._stroke.points) < 2 or not (s.width > 2 or s.height > 2):
                 self.canvas.remove_group(id)
                 del self._strokes[id]
             else:
