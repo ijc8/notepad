@@ -60,6 +60,7 @@ class StrokeContainer(EventDispatcher):
 
         self.id = line.group
         self._stroke = line
+
         # Make sure the bbox is up to date with the first touch position
         for point in zip(line.points[::2], line.points[1::2]):
             self.update_bbox(*point)
@@ -88,6 +89,8 @@ class StrokeContainer(EventDispatcher):
             'width': self._stroke.width,
             'group': self._stroke.group,
         }
+
+        print("serialize", stroke)
         return {
             'color': self.color,
             'bbox': self.bbox,
@@ -99,9 +102,10 @@ class StrokeContainer(EventDispatcher):
     @staticmethod
     def deserialize(obj):
         stroke = obj['stroke']
+
         line = Line(
             points=stroke['points'],
-            widght=stroke['width'],
+            width=stroke['width'],
             group=stroke['group'],
         )
         s = StrokeContainer(line)

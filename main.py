@@ -550,6 +550,9 @@ class NotePadApp(App):
         self.load_popup.ids.filechooser._update_files()
 
     def clear(self):
+        self.load_from_file('saved/initial.np')
+
+    def _clear(self):
         self.state.reset()
         self.surface.clear()
         self.surface.canvas.clear()
@@ -562,14 +565,12 @@ class NotePadApp(App):
         self.info_popup.open()
 
     def load_from_file(self, filename):
-        self.clear()
+        self._clear()
         self.surface.clear_history()
 
         serialized_surface = None
         with open(filename, "rb") as data_file:
             serialized_surface = pickle.load(data_file)
-
-        print(serialized_surface)
 
         self.surface.populate(serialized_surface)
         self.surface.redraw_all()
@@ -880,6 +881,8 @@ class NotePadApp(App):
             Color(1, 0, 0, 1)
             self.plot = Line(points = [(x/88200 * 100, 100 * np.sin(x / 1000.) + 600) for x in range(0, 88200)])
 
+
+        self.clear()
         return layout
 
 
