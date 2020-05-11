@@ -61,7 +61,9 @@ class Recognizer:
             if score > d:
                 score = d
                 result = template
-        score = max((2 - score) / 2, 0)
+        # For _old_cloud_distance: score = max((2 - score) / 2, 0)
+        norm = self.n * 2
+        score = max((norm - score) / norm, 0)
         if result is None or score == 0:
             return None, score
         return result.name, score
@@ -72,9 +74,8 @@ class Recognizer:
         minimum = float("inf")
 
         for i in range(0, n, step):
-            d_1 = self._cloud_distance(points, template, n, i)
-            d_2 = self._cloud_distance(template, points, n, i)
-            minimum = min(minimum, d_1, d_2)
+            minimum = min(minimum, self._cloud_distance(points, template, n, i, minimum))
+            minimum = min(minimum, self._cloud_distance(template, points, n, i, minimum))
         return minimum
 
     # Keeping this around just in case...
@@ -99,8 +100,9 @@ class Recognizer:
                 break
         return sum_distance
 
-    # This version employs the code-level optimizations described in the $Q paper.
-    def _cloud_distance(self, points, template, n, start):
+    # This version employs the code-level optimizations described in the $Q paper,
+    # as well as the early-exit. (See Figures 7 and 8.)
+    def _cloud_distance(self, points, template, n, start, min_so_far):
         unmatched = list(range(n))
         sum_distance = 0
         i = start
@@ -116,12 +118,13 @@ class Recognizer:
                     index = j
             unmatched.remove(index)
             sum_distance += weight * minimum
+            if sum_distance >= min_so_far:
+                return sum_distance
             weight -= 1
             i = (i + 1) % n
             if i == start:
                 break
-        # TODO: Remove the division by n here, if we stop thresholding matches in recognize().
-        return sum_distance / n
+        return sum_distance
 
     def _sqr_euclidean_distance(self, point_1, point_2):
         return (point_1.x - point_2.x)**2 + (point_1.y - point_2.y)**2
