@@ -93,3 +93,19 @@ def is_bbox_intersecting_helper(bb, x, y, margin=0):
     maxx += margin
     maxy += margin
     return minx <= x <= maxx and miny <= y <= maxy
+
+def is_unrecognized_gesture(name, gesture, surface):
+    return name is None or too_far_away_from_staff(gesture, surface)
+
+
+def too_far_away_from_staff(gesture, surface):
+
+    miny = gesture.miny
+    maxy = gesture.maxy
+
+    dist = np.inf
+    for y in [miny, maxy]:
+        for staff_y in [surface.height_min, surface.height_max]:
+            dist = min(dist, abs(y - staff_y))
+
+    return (surface.size[1] / 22) < dist

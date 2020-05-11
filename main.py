@@ -117,30 +117,18 @@ class NotePadState:
         self.notes = []
         self.staff_chords = [[], []]
 
-    def is_unrecognized_gesture(self, name, gesture):
-        return name is None # or self.too_far_away_from_staff(gesture)
-
-    def too_far_away_from_staff(self, gesture):
-        # TODO
-        miny = gesture.miny
-        maxy = gesture.maxy
-
-        dist = np.inf
-        for y in [miny, maxy]:
-            for staff_y in [surface.height_min, surface.height_max]:
-                dist = min(dist, abs(y - staff_y))
-
-        return (surface.size[1] / 22) < dist
 
     # This will process the recognition of a single area in the canvas.
-    def handle_recognition_result(self, surface, result):
+    # and modify the internal state.
+    @staticmethod
+    def handle_recognition_result(state, surface, result):
         best = result.best
         g = result._gesture_obj
         instrument_prefix = "instrument-"
         chord_prefix = "chord-"
 
         recognized_name = best["name"]
-        if self.is_unrecognized_gesture(best["name"], g):
+        if util.is_unrecognized_gesture(best["name"], g, surface):
             # No match or ignored. Leave it onscreen in case it's for the user's benefit.
             # TODO: self.set_color_rgba(g.id, RED)
             recognized_name = "Not Recognized"
@@ -164,7 +152,7 @@ class NotePadState:
             x, y = points.mean(axis=0)
             staff = min((0, 1), key=lambda s: np.abs(surface.get_height(s, 4) - y))
             # TODO: add real Staff class instead of doing this ad-hoc stuff.
-            self.staff_chords[staff].append((x, chord))
+            state.staff_chords[staff].append((x, chord))
         elif recognized_name.endswith("note"):
             center = points.mean(axis=0)
             points = points[util.reject_outliers(points[:, 1])]
@@ -194,8 +182,8 @@ class NotePadState:
             pitch = pitches_per_staff[staff][line]
             note = Note(pitch, durations[recognized_name[:-4]], x, staff)
             print(note)
-            self.notes.append(note)
-            self.notes.sort(key=lambda note: note.x)
+            state.notes.append(note)
+            state.notes.sort(key=lambda note: note.x)
 
             # Hacky way to change note color to black once it's registered.
             # self.set_color_rgba(g.id, BLACK)
@@ -207,8 +195,8 @@ class NotePadState:
             )
             note = Note(0, durations[recognized_name[:-4]], x, staff)
             print(note)
-            self.notes.append(note)
-            self.notes.sort(key=lambda note: note.x)
+            state.notes.append(note)
+            state.notes.sort(key=lambda note: note.x)
 
             # Hacky way to change rest color to black once it's registered.
             # self.set_color_rgba(g.id, BLACK)
@@ -374,7 +362,7 @@ recognition_memo = {}
 class StrokeGroup:
     def __init__(self, strokes):
         self.bbox_margin = 20
-        self.id = frozenset(stroke[0] for stroke in strokes)
+        self.ids = frozenset(stroke[0] for stroke in strokes)
         self.strokes = [stroke[1] for stroke in strokes]
         all_points = np.array(sum(self.strokes, []))
         self.minx = np.min(all_points[:, 0])
@@ -383,8 +371,8 @@ class StrokeGroup:
         self.maxy = np.max(all_points[:, 1])
 
     def merge(self, other):
-        self.ids += other.ids
-        self.strokes |= other.strokes
+        self.ids = frozenset.union(self.ids, other.ids)
+        self.strokes = self.strokes + other.strokes
         # Could merge the bounding boxes more efficiently.
         all_points = np.array(sum(self.strokes, []))
         self.minx = np.min(all_points[:, 0])
@@ -434,15 +422,15 @@ class NotePadApp(App):
         print(len(groups))
 
         for g in groups:
-            result = recognition_memo.get(g.id, None)
+            result = recognition_memo.get(g.ids, None)
             if not result:
                 dollarResult = self.recognizer.recognize(util.convert_to_dollar(g.strokes))
                 result = util.ResultWrapper(dollarResult)
                 result._gesture_obj = g
-                recognition_memo[g.id] = result
+                recognition_memo[g.ids] = result
 
             # self.history.add_recognizer_result(result)
-            self.state.handle_recognition_result(self.surface, result)
+            NotePadState.handle_recognition_result(self.state, self.surface, result)
 
     def start_loop(self):
         self.shouldLoop = True
