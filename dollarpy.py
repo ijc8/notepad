@@ -77,7 +77,8 @@ class Recognizer:
             minimum = min(minimum, d_1, d_2)
         return minimum
 
-    def _cloud_distance(self, points, template, n, start):
+    # Keeping this around just in case...
+    def _old_cloud_distance(self, points, template, n, start):
         matched = [False] * n
         sum_distance = 0
         i = start
@@ -97,6 +98,33 @@ class Recognizer:
             if i == start:
                 break
         return sum_distance
+
+    # This version employs the code-level optimizations described in the $Q paper.
+    def _cloud_distance(self, points, template, n, start):
+        unmatched = list(range(n))
+        sum_distance = 0
+        i = start
+        weight = n
+
+        while True:
+            minimum = float("inf")
+            index = None
+            for j in unmatched:
+                d = self._sqr_euclidean_distance(points[i], template[j])
+                if d < minimum:
+                    minimum = d
+                    index = j
+            unmatched.remove(index)
+            sum_distance += weight * minimum
+            weight -= 1
+            i = (i + 1) % n
+            if i == start:
+                break
+        # TODO: Remove the division by n here, if we stop thresholding matches in recognize().
+        return sum_distance / n
+
+    def _sqr_euclidean_distance(self, point_1, point_2):
+        return (point_1.x - point_2.x)**2 + (point_1.y - point_2.y)**2
 
     def _euclidean_distance(self, point_1, point_2):
         return math.hypot(point_1.x - point_2.x,
