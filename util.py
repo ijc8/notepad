@@ -1,5 +1,6 @@
 import numpy as np
 from dollarpy import Point
+from kivy.graphics import Color, Line
 
 def get_bounds(points):
     return np.array([np.min(points, axis=0), np.max(points, axis=0)])
@@ -112,3 +113,10 @@ def too_far_away_from_staff(gesture, surface):
 
 def loaded_id(old_id):
     return f'loaded_id:{old_id}'
+
+def set_color_rgba(surface, stroke_group, rgba):
+    for id in stroke_group.ids:
+        group = list(surface.canvas.get_group(id))
+        for i0, i1 in zip(group, group[2:]):
+            if isinstance(i0, Color) and isinstance(i1, Line):
+                i0.rgba = rgba

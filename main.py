@@ -130,7 +130,7 @@ class NotePadState:
         recognized_name = best["name"]
         if util.is_unrecognized_gesture(best["name"], g, surface):
             # No match or ignored. Leave it onscreen in case it's for the user's benefit.
-            # TODO: self.set_color_rgba(g.id, RED)
+            util.set_color_rgba(surface, g, RED)
             recognized_name = "Not Recognized"
 
         # TODO: more feedback?
@@ -138,7 +138,7 @@ class NotePadState:
         points = np.array(sum(g.strokes, []))
 
         if recognized_name == "trebleclef" or recognized_name == "bassclef" or recognized_name == "barline":
-            # self.set_color_rgba(g.id, BLACK)
+            util.set_color_rgba(surface, g, BLACK)
             pass
         elif recognized_name.startswith(instrument_prefix):
             instrument = recognized_name[len(instrument_prefix):]
@@ -186,7 +186,7 @@ class NotePadState:
             state.notes.sort(key=lambda note: note.x)
 
             # Hacky way to change note color to black once it's registered.
-            # self.set_color_rgba(g.id, BLACK)
+            util.set_color_rgba(surface, g, BLACK)
         elif recognized_name.endswith("rest"):
             x, y = points.mean(axis=0)
             staves = [0, 1]
@@ -199,7 +199,7 @@ class NotePadState:
             state.notes.sort(key=lambda note: note.x)
 
             # Hacky way to change rest color to black once it's registered.
-            # self.set_color_rgba(g.id, BLACK)
+            util.set_color_rgba(surface, g, BLACK)
 
 
 # Manages current interaction mode, maintains "surface-level" undo and redo history.
