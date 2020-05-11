@@ -369,18 +369,23 @@ class Note:
         return f"Note({self.pitch}, {self.duration}, {self.x}, {self.staff})"
 
 
+recognition_memo = {}
+
 class StrokeGroup:
     def __init__(self, strokes):
         self.bbox_margin = 20
-        self.strokes = strokes
-        all_points = np.array(sum(strokes, []))
+        self.id = frozenset(stroke[0] for stroke in strokes)
+        self.strokes = [stroke[1] for stroke in strokes]
+        all_points = np.array(sum(self.strokes, []))
         self.minx = np.min(all_points[:, 0])
         self.maxx = np.max(all_points[:, 0])
         self.miny = np.min(all_points[:, 1])
         self.maxy = np.max(all_points[:, 1])
 
     def merge(self, other):
-        self.strokes += other.strokes
+        self.ids += other.ids
+        self.strokes |= other.strokes
+        # Could merge the bounding boxes more efficiently.
         all_points = np.array(sum(self.strokes, []))
         self.minx = np.min(all_points[:, 0])
         self.maxx = np.max(all_points[:, 0])
@@ -406,10 +411,7 @@ class NotePadApp(App):
     def interpret_canvas(self, surface):
         self.state.reset()
         strokes = self.surface.get_strokes()
-        groups = [StrokeGroup([stroke]) for stroke in strokes if len(stroke) > 1]
-        groups = [g for g in groups if g.maxx - g.minx > 5 or g.maxy - g.miny > 5]
-        for stroke in strokes:
-            stroke = np.array(stroke)
+        groups = [StrokeGroup([stroke]) for stroke in strokes]
 
         def needs_merging():
             for g in groups:
@@ -432,9 +434,12 @@ class NotePadApp(App):
         print(len(groups))
 
         for g in groups:
-            dollarResult = self.recognizer.recognize(util.convert_to_dollar(g.strokes))
-            result = util.ResultWrapper(dollarResult)
-            result._gesture_obj = g
+            result = recognition_memo.get(g.id, None)
+            if not result:
+                dollarResult = self.recognizer.recognize(util.convert_to_dollar(g.strokes))
+                result = util.ResultWrapper(dollarResult)
+                result._gesture_obj = g
+                recognition_memo[g.id] = result
 
             # self.history.add_recognizer_result(result)
             self.state.handle_recognition_result(self.surface, result)

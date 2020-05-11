@@ -121,7 +121,7 @@ class StrokeSurface(FloatLayout):
     def get_strokes(self):
         vecs = []
         for stroke in self._strokes.values():
-            vecs.append(stroke.get_points())
+            vecs.append((stroke.id, stroke.get_points()))
         return vecs
 
     def clear(self):
@@ -176,10 +176,15 @@ class StrokeSurface(FloatLayout):
             return
         touch.ungrab(self)
 
+        id = str(touch.uid)
         if self._mode == "write":
-            s = self._strokes[str(touch.uid)]
-            self.clear_redo_history()
-            self.undo_history.append(s)
+            s = self._strokes[id]
+            if len(s._stroke.points) < 2 or not (s.width > 5 or s.height > 5):
+                self.canvas.remove_group(id)
+                del self._strokes[id]
+            else:
+                self.clear_redo_history()
+                self.undo_history.append(s)
         self.dispatch('on_canvas_change')
 
     def add_stroke(self, points):

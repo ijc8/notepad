@@ -111,12 +111,12 @@ class Recognizer:
         while True:
             minimum = float("inf")
             index = None
-            for j in unmatched:
-                d = self._sqr_euclidean_distance(points[i], template[j])
+            for j in range(len(unmatched)):
+                d = self._sqr_euclidean_distance(points[i], template[unmatched[j]])
                 if d < minimum:
                     minimum = d
                     index = j
-            unmatched.remove(index)
+            del unmatched[index]
             sum_distance += weight * minimum
             if sum_distance >= min_so_far:
                 return sum_distance
