@@ -524,8 +524,9 @@ class NotePadApp(App):
         return duration
 
     def save_to_file(self, path):
+        surface = self.surface.serialize()
         with open(path, "wb") as data_file:
-            pickle.dump(self.surface.get_strokes(), data_file)
+            pickle.dump(surface, data_file)
 
     def save(self, *l):
         path = self.save_popup.ids.filename.text
@@ -548,6 +549,11 @@ class NotePadApp(App):
         self.info_popup.open()
         self.load_popup.ids.filechooser._update_files()
 
+    def clear(self):
+        self.state.reset()
+        self.surface.clear()
+        self.surface.canvas.clear()
+
     def load(self, filechooser, *l):
         for f in filechooser.selection:
             self.load_from_file(filename=f)
@@ -557,16 +563,17 @@ class NotePadApp(App):
 
     def load_from_file(self, filename):
         self.clear()
+        self.surface.clear_history()
 
-        stroke_vec = None
+        serialized_surface = None
         with open(filename, "rb") as data_file:
-            stroke_vec = pickle.load(data_file)
+            serialized_surface = pickle.load(data_file)
 
-        for vectors in stroke_vec:
-            np_vectors = np.array(vectors)
-            with self.surface.canvas:
-                Color(rgba=BLACK)
-                Line(points=np_vectors.flat, group=group_id, width=2)
+        print(serialized_surface)
+
+        self.surface.populate(serialized_surface)
+        self.surface.redraw_all()
+        self.interpret_canvas(self.surface)
 
     def update_record_signifiers(self, idx):
         idx -= 1  # fluidsynth scheduler workaround

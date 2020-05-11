@@ -21,7 +21,7 @@ from kivy.vector import Vector
 from kivy.uix.floatlayout import FloatLayout
 from kivy.graphics import Color, Line, Rectangle
 from kivy.properties import (NumericProperty, BooleanProperty,
-                             DictProperty, ListProperty)
+                             DictProperty)
 from colorsys import hsv_to_rgb
 
 import numpy as np
@@ -49,16 +49,15 @@ class StrokeContainer(EventDispatcher):
         `height`
             Represents the height of the stroke.
     '''
-    bbox = DictProperty({'minx': float('inf'), 'miny': float('inf'),
-                         'maxx': float('-inf'), 'maxy': float('-inf')})
-    width = NumericProperty(0)
-    height = NumericProperty(0)
-
     def __init__(self, line, **kwargs):
         # The color is applied to all canvas items of this gesture
         self.color = kwargs.pop('color', [0., 0., 0.])
-
         super().__init__(**kwargs)
+        self.width = 0
+        self.height = 0
+        self.bbox = {'minx': float('inf'), 'miny': float('inf'),
+                     'maxx': float('-inf'), 'maxy': float('-inf')}
+
         self.id = line.group
         self._stroke = line
         # Make sure the bbox is up to date with the first touch position
@@ -83,6 +82,34 @@ class StrokeContainer(EventDispatcher):
         self.width = bb['maxx'] - bb['minx']
         self.height = bb['maxy'] - bb['miny']
 
+    def serialize(self):
+        stroke = {
+            'points': self._stroke.points,
+            'width': self._stroke.width,
+            'group': self._stroke.group,
+        }
+        return {
+            'color': self.color,
+            'bbox': self.bbox,
+            'width': self.width,
+            'height': self.height,
+            'stroke': stroke,
+        }
+
+    @staticmethod
+    def deserialize(obj):
+        stroke = obj['stroke']
+        line = Line(
+            points=stroke['points'],
+            widght=stroke['width'],
+            group=stroke['group'],
+        )
+        s = StrokeContainer(line)
+        s.color = obj['color']
+        s.bbox = obj['bbox']
+        s.width = obj['width']
+        s.height = obj['height']
+        return s
 
 class StrokeSurface(FloatLayout):
     '''Drawing surface for strokes.
@@ -103,7 +130,7 @@ class StrokeSurface(FloatLayout):
     '''
 
     line_width = NumericProperty(2)
-    color = ListProperty([0., 0., 0.])
+
     draw_bbox = BooleanProperty(True)
     bbox_alpha = NumericProperty(0.1)
     erase_threshold = 10
@@ -114,9 +141,10 @@ class StrokeSurface(FloatLayout):
         self._strokes = {}
         self.undo_history = []
         self.redo_history = []
+        self.color = [0., 0., 0.]
         self.register_event_type('on_canvas_change')
         self._mode = "write"
-        self.artifical_id = 0
+        self.artificial_id = 0
 
     def get_strokes(self):
         vecs = []
@@ -131,6 +159,40 @@ class StrokeSurface(FloatLayout):
         self._strokes = {}
         self.canvas.clear()
         self.dispatch('on_canvas_change')
+
+    def clear_history(self):
+        self.undo_history = []
+        self.redo_history = []
+
+    def serialize(self):
+        strokes = {}
+        for id, stroke in self._strokes.items():
+            strokes[id] = stroke.serialize()
+
+        return {
+            'strokes': strokes,
+            'artificial_id': self.artificial_id,
+            'color': self.color,
+        }
+
+    def populate(self, obj):
+        self.undo_history = []
+        self.redo_history = []
+
+        self.artificial_id = obj['artificial_id']
+        self.color = obj['color']
+
+        strokes = obj['strokes']
+        self._strokes = {}
+        for id, serialized_stroke_obj in strokes.items():
+            self._strokes[id] = StrokeContainer.deserialize(serialized_stroke_obj)
+
+    def redraw_all(self):
+        for id, stroke in self._strokes.items():
+            col = stroke.color
+            self.canvas.add(Color(col[0], col[1], col[2], mode='rgb', group=id))
+            self.canvas.add(stroke._stroke)
+
 
 # -----------------------------------------------------------------------------
 # Touch Events
@@ -189,8 +251,8 @@ class StrokeSurface(FloatLayout):
 
     def add_stroke(self, points):
         "Add a new stroke to the Surface (as if the user drew it)."
-        id = f'artificial touch {self.artifical_id}'
-        self.artifical_id += 1
+        id = f'artificial touch {self.artificial_id}'
+        self.artificial_id += 1
         line = Line(points=points.flatten().tolist(),
                     width=self.line_width,
                     group=id)
