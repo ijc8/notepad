@@ -422,12 +422,12 @@ class NotePadApp(App):
         print(len(groups))
 
         for g in groups:
-            result = recognition_memo.get(g.ids, None)
+            result = self.recognition_memo.get(g.ids, None)
             if not result:
                 dollarResult = self.recognizer.recognize(util.convert_to_dollar(g.strokes))
                 result = util.ResultWrapper(dollarResult)
                 result._gesture_obj = g
-                recognition_memo[g.ids] = result
+                self.recognition_memo[g.ids] = result
 
             # self.history.add_recognizer_result(result)
             NotePadState.handle_recognition_result(self.state, self.surface, result)
@@ -556,6 +556,7 @@ class NotePadApp(App):
         self.state.reset()
         self.surface.clear()
         self.surface.canvas.clear()
+        self.recognition_memo = {}
 
     def load(self, filechooser, *l):
         for f in filechooser.selection:

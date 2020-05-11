@@ -90,7 +90,6 @@ class StrokeContainer(EventDispatcher):
             'group': self._stroke.group,
         }
 
-        print("serialize", stroke)
         return {
             'color': self.color,
             'bbox': self.bbox,
@@ -106,7 +105,9 @@ class StrokeContainer(EventDispatcher):
         line = Line(
             points=stroke['points'],
             width=stroke['width'],
-            group=stroke['group'],
+            group=util.loaded_id(stroke['group']),
+            # touch.uid starts from 1,2,...
+            # this makes sure that it doesn't collide with loaded data
         )
         s = StrokeContainer(line)
         s.color = obj['color']
@@ -188,7 +189,10 @@ class StrokeSurface(FloatLayout):
 
         strokes = obj['strokes']
         self._strokes = {}
-        for id, serialized_stroke_obj in strokes.items():
+        for old_id, serialized_stroke_obj in strokes.items():
+            # touch.uid starts from 1,2,...
+            # this makes sure that it doesn't collide with loaded data
+            id = util.loaded_id(old_id)
             self._strokes[id] = StrokeContainer.deserialize(serialized_stroke_obj)
 
     def redraw_all(self):
@@ -214,6 +218,9 @@ class StrokeSurface(FloatLayout):
             self.erase(touch.x, touch.y)
         return True
 
+    def get_id(self, touch):
+        return str(touch.uid)
+
     def on_touch_move(self, touch):
         "When a touch moves, we add a point to the line on the canvas so the path is updated."
         if touch.grab_current is not self:
@@ -223,7 +230,7 @@ class StrokeSurface(FloatLayout):
 
         if self._mode == "write":
             # Retrieve the StrokeContainer object that handles this touch.
-            s = self._strokes[str(touch.uid)]
+            s = self._strokes[self.get_id(touch)]
             s.update_bbox(touch.x, touch.y)
             # Add the new point to gesture stroke list and update the canvas line
             s._stroke.points += (touch.x, touch.y)
@@ -242,7 +249,7 @@ class StrokeSurface(FloatLayout):
             return
         touch.ungrab(self)
 
-        id = str(touch.uid)
+        id = self.get_id(touch)
         if self._mode == "write":
             s = self._strokes[id]
             if len(s._stroke.points) < 2 or not (s.width > 5 or s.height > 5):
@@ -290,7 +297,7 @@ class StrokeSurface(FloatLayout):
         '''Create a new gesture from touch, i.e. it's the first on
         surface, or was not close enough to any existing gesture (yet)'''
         col = self.color
-        id = str(touch.uid)
+        id = self.get_id(touch)
         points = [touch.x, touch.y]
         line = Line(points=points,
                     width=self.line_width,
