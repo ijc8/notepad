@@ -799,7 +799,7 @@ class NotePadApp(App):
         self.manager = ScreenManager(transition=SlideTransition(duration=0.15))
 
         self.state = NotePadState()
-        self.recognizer = Recognizer([])
+        self.recognizer = Recognizer()
 
         # Setup the GestureSurface and bindings to our Recognizer
         self.surface_screen = NotePadScreen(name="surface")

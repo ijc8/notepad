@@ -99,7 +99,7 @@ class GestureDatabase(GridLayout):
         with open(filename, "rb") as data_file:
             templates = pickle.load(data_file)
 
-        self.recognizer.templates = templates
+        self.recognizer.import_templates(templates)
         # self.recognizer.import_gesture(filename='model/prototype.kg')
 
     def import_gdb(self):

@@ -89,7 +89,7 @@ class GestureHistoryManager(GridLayout):
 
         cand = util.convert_to_dollar(self.selected._result_obj._gesture_obj.strokes)
 
-        self.recognizer.templates.append(Template(name, cand))
+        self.recognizer.import_templates([Template(name, cand)])
 
         # if permute and len(cand) > MAX_PERMUTE_STROKES:
         #    t = "Can't heap permute %d-stroke gesture " % (len(cand))
