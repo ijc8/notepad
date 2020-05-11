@@ -54,34 +54,23 @@ class StrokeContainer(EventDispatcher):
     width = NumericProperty(0)
     height = NumericProperty(0)
 
-    def __init__(self, touch, **kwargs):
+    def __init__(self, line, **kwargs):
         # The color is applied to all canvas items of this gesture
         self.color = kwargs.pop('color', [0., 0., 0.])
 
         super().__init__(**kwargs)
-        # This is the touch.uid of the oldest touch represented
-        self.id = str(touch.uid)
-        # Key is touch.uid; value is a kivy.graphics.Line(); it's used even
-        # if line_width is 0 (i.e. not actually drawn anywhere)
-        # TODO: for our new use, this will just contain one stroke.
-        self._strokes = {}
+        self.id = line.group
+        self._stroke = line
         # Make sure the bbox is up to date with the first touch position
-        self.update_bbox(touch)
+        for point in zip(line.points[::2], line.points[1::2]):
+            self.update_bbox(*point)
 
-    def get_vectors(self, **kwargs):
-        '''Return stroke vectors.'''
-        vecs = []
-        for tuid, l in self._strokes.items():
-            vecs.append(list(zip(l.points[::2], l.points[1::2])))
-        return vecs
+    def get_points(self, **kwargs):
+        "Return stroke points."
+        return list(zip(self._stroke.points[::2], self._stroke.points[1::2]))
 
-    def handles(self, touch):
-        '''Returns True if this container handles the given touch'''
-        return str(touch.uid) in self._strokes
-
-    def update_bbox(self, touch):
+    def update_bbox(self, x, y):
         '''Update gesture bbox from a touch coordinate'''
-        x, y = touch.x, touch.y
         bb = self.bbox
         if x < bb['minx']:
             bb['minx'] = x
@@ -117,28 +106,29 @@ class StrokeSurface(FloatLayout):
     color = ListProperty([0., 0., 0.])
     draw_bbox = BooleanProperty(True)
     bbox_alpha = NumericProperty(0.1)
-    erase_threshold = 2
+    erase_threshold = 10
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # A list of StrokeContainer objects (all strokes on the surface)
-        self._strokes = []
+        # A map of Touch ID to StrokeContainer objects (all strokes on the surface)
+        self._strokes = {}
         self.undo_history = []
         self.redo_history = []
         self.register_event_type('on_canvas_change')
         self._mode = "write"
+        self.artifical_id = 0
 
-    def get_vectors(self):
+    def get_strokes(self):
         vecs = []
-        for stroke in self._strokes:
-            vecs += stroke.get_vectors()
+        for stroke in self._strokes.values():
+            vecs.append(stroke.get_points())
         return vecs
 
     def clear(self):
         # TODO: allow bulk undoing a clear
-        for stroke in self._strokes:
+        for stroke in self._strokes.values():
             self.redo_history.append(stroke)
-        self._strokes = []
+        self._strokes = {}
         self.canvas.clear()
         self.dispatch('on_canvas_change')
 
@@ -167,10 +157,10 @@ class StrokeSurface(FloatLayout):
 
         if self._mode == "write":
             # Retrieve the StrokeContainer object that handles this touch.
-            s = self.get_stroke(touch)
-            s.update_bbox(touch)
+            s = self._strokes[str(touch.uid)]
+            s.update_bbox(touch.x, touch.y)
             # Add the new point to gesture stroke list and update the canvas line
-            s._strokes[str(touch.uid)].points += (touch.x, touch.y)
+            s._stroke.points += (touch.x, touch.y)
 
             # Draw the gesture bounding box; if it is a single press that
             # does not trigger a move event, we would miss it otherwise.
@@ -187,22 +177,40 @@ class StrokeSurface(FloatLayout):
         touch.ungrab(self)
 
         if self._mode == "write":
-            s = self.get_stroke(touch)
+            s = self._strokes[str(touch.uid)]
             self.clear_redo_history()
             self.undo_history.append(s)
         self.dispatch('on_canvas_change')
 
+    def add_stroke(self, points):
+        "Add a new stroke to the Surface (as if the user drew it)."
+        id = f'artificial touch {self.artifical_id}'
+        self.artifical_id += 1
+        line = Line(points=points,
+                    width=self.line_width,
+                    group=id)
+        s = StrokeContainer(line)
+        self._strokes[id] = s
+        col = g.color
+        self.canvas.add(Color(col[0], col[1], col[2], mode='rgb', group=id))
+        self.canvas.add(s)
+        self.dispatch('on_canvas_change')
+
     def erase(self, x, y):
-        for idx, stroke in enumerate(self._strokes):
+        dead = []
+        for id, stroke in self._strokes.items():
             bb = [stroke.bbox[k] for k in ('minx', 'miny', 'maxx', 'maxy')]
             if not util.is_bbox_intersecting_helper(bb, x, y):
                 continue
-            dist = np.min(np.linalg.norm(np.array(stroke.get_vectors()) - np.array([x, y])[None, :], axis=0))
+            dist = np.min(np.linalg.norm(np.array(stroke.get_points()) - np.array([x, y])[None, :], axis=1))
             if dist < self.erase_threshold:
-                self.canvas.remove_group(stroke.id)
+                self.canvas.remove_group(id)
                 # TODO: put it on undo history, once we add 're-adding' ability to undo.
                 self.redo_history.append(stroke)
-                del self._strokes[idx]
+                dead.append(id)
+
+        for id in dead:
+            del self._strokes[id]
 
 # -----------------------------------------------------------------------------
 # Stroke related methods
@@ -211,7 +219,14 @@ class StrokeSurface(FloatLayout):
         '''Create a new gesture from touch, i.e. it's the first on
         surface, or was not close enough to any existing gesture (yet)'''
         col = self.color
-        g = StrokeContainer(touch, color=col)
+        id = str(touch.uid)
+        points = [touch.x, touch.y]
+        line = Line(points=points,
+                    width=self.line_width,
+                    group=id)
+
+        g = StrokeContainer(line, color=col)
+        self._strokes[id] = g
 
         # Create the bounding box Rectangle for the gesture
         if self.draw_bbox:
@@ -226,25 +241,13 @@ class StrokeSurface(FloatLayout):
                     size=(bb['maxx'] - bb['minx'],
                           bb['maxy'] - bb['miny']))
 
-        self._strokes.append(g)
 
-        # Old init_stroke here:
-        points = [touch.x, touch.y]
         col = g.color
-
-        new_line = Line(
-            points=points,
-            width=self.line_width,
-            group=g.id)
-        g._strokes[str(touch.uid)] = new_line
 
         if self.line_width:
             self.canvas.add(Color(col[0], col[1], col[2], mode='rgb', group=g.id))
-            self.canvas.add(new_line)
+            self.canvas.add(line)
 
-        # Update the bbox in case; this will normally be done in on_touch_move,
-        # but we want to update it also for a single press, force that here:
-        g.update_bbox(touch)
         if self.draw_bbox:
             self._update_canvas_bbox(g)
 
@@ -259,8 +262,7 @@ class StrokeSurface(FloatLayout):
         self.canvas.remove_group(gesture_id)
         self.redo_history.append(g)
 
-        idx = self._strokes.index(g)
-        del self._strokes[idx]
+        del self._strokes[g.id]
         self.dispatch('on_canvas_change')
         return gesture_id
 
@@ -271,11 +273,10 @@ class StrokeSurface(FloatLayout):
         g = self.redo_history.pop()
         self.undo_history.append(g)
 
-        self._strokes.append(g)
+        self._strokes[g.id] = g
         col = g.color
-        for (_, line) in g._strokes.items():
-            self.canvas.add(Color(col[0], col[1], col[2], mode='rgb', group=g.id))
-            self.canvas.add(line)
+        self.canvas.add(Color(col[0], col[1], col[2], mode='rgb', group=g.id))
+        self.canvas.add(g._stroke)
         self.dispatch('on_canvas_change')
 
     def clear_history(self):
@@ -284,13 +285,6 @@ class StrokeSurface(FloatLayout):
 
     def clear_redo_history(self):
         self.redo_history = []
-
-    def get_stroke(self, touch):
-        '''Returns StrokeContainer associated with given touch'''
-        for g in self._strokes:
-            if g.handles(touch):
-                return g
-        raise Exception('get_stroke() failed to identify ' + str(touch.uid))
 
     def _update_canvas_bbox(self, g):
         # If draw_bbox is changed while two gestures are active,

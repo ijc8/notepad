@@ -410,7 +410,7 @@ class NotePadApp(App):
 
     def interpret_canvas(self, surface):
         self.state.reset()
-        strokes = self.surface.get_vectors()
+        strokes = self.surface.get_strokes()
         groups = [StrokeGroup([stroke]) for stroke in strokes]
         for stroke in strokes:
             stroke = np.array(stroke)
@@ -536,7 +536,7 @@ class NotePadApp(App):
 
     def save_to_file(self, path):
         with open(path, "wb") as data_file:
-            pickle.dump(self.surface.get_vectors(), data_file)
+            pickle.dump(self.surface.get_strokes(), data_file)
 
     def save(self, *l):
         path = self.save_popup.ids.filename.text
@@ -872,7 +872,7 @@ class NotePadApp(App):
             if codepoint == "d":
                 self.debug = not self.debug
                 print('Canvas state:')
-                for vec in self.surface.get_vectors():
+                for vec in self.surface.get_strokes():
                     print(vec)
 
         Window.bind(on_keyboard=on_keyboard)
