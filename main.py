@@ -337,9 +337,10 @@ class NotePadSurface(StrokeSurface):
         new_center_x = x_start + note_padding
         points += (new_center_x, self.get_y_from_pitch(staff_number, pitch))
 
-        with self.canvas:
-            Color(rgba=BLACK)
-            Line(points=points.flat, group=group_id, width=self.line_width)
+        self.surface.add_stroke(points)
+        # with self.canvas:
+        #     Color(rgba=BLACK)
+        #     Line(points=points.flat, group=group_id, width=self.line_width)
 
         return new_center_x + note_padding
 
@@ -411,7 +412,8 @@ class NotePadApp(App):
     def interpret_canvas(self, surface):
         self.state.reset()
         strokes = self.surface.get_strokes()
-        groups = [StrokeGroup([stroke]) for stroke in strokes]
+        groups = [StrokeGroup([stroke]) for stroke in strokes if len(stroke) > 1]
+        groups = [g for g in groups if g.maxx - g.minx > 5 or g.maxy - g.miny > 5]
         for stroke in strokes:
             stroke = np.array(stroke)
 
@@ -694,13 +696,14 @@ class NotePadApp(App):
             f.close()
             print(f"saved recording to {outfile}.")
 
+    # TODO move this
     def calculate_x_start(self):
-        if len(self.notes) == 0:
+        if len(self.state.notes) == 0:
             return 20
 
         bar_size = 12 * self.surface.line_spacing
-        note_padding = (bar_size * self.notes[-1].duration) / 2
-        return self.notes[-1].x + note_padding
+        note_padding = (bar_size * self.state.notes[-1].duration) / 2
+        return self.state.notes[-1].x + note_padding
 
     def generate_group_id(self):
         self.group_id_counter += 1

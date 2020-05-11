@@ -191,7 +191,7 @@ class StrokeSurface(FloatLayout):
                     group=id)
         s = StrokeContainer(line)
         self._strokes[id] = s
-        col = g.color
+        col = s.color
         self.canvas.add(Color(col[0], col[1], col[2], mode='rgb', group=id))
         self.canvas.add(s)
         self.dispatch('on_canvas_change')
