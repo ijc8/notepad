@@ -363,9 +363,11 @@ class NotePadSurface(StrokeSurface):
             values = hack_map[value]
             last_point = None
             for value in values:
+
+                offset = 20 if pitch > 72 else -20
                 next_point = (
                     x_start + 25,
-                    self.get_y_from_pitch(staff_number, pitch) - 20,
+                    self.get_y_from_pitch(staff_number, pitch) + offset,
                 )
                 x_start = self.draw_note(
                     staff_number, x_start, (None, value, pitch), group_id
