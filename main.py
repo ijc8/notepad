@@ -46,7 +46,7 @@ from historymanager import GestureHistoryManager
 from gesturedatabase import GestureDatabase
 from settings import MultistrokeSettingsContainer
 import util
-import math
+import common
 
 if is_desktop:
     import transcribe
@@ -230,8 +230,8 @@ class NotePadState:
         points = np.array(sum(g.strokes, []))
         x, y = points.mean(axis=0)
 
-        # Hacky way to change note color to black for registered note.
-        util.set_color_rgba(surface, g, (0.1, 0.1, 0.6, 0.8))
+        # Indicate stroke recognition through color change.
+        util.set_color_rgba(surface, g, common.RECOGNITION_COLOR)
 
         if name == "barline":
             # Currently, we do nothing for this.

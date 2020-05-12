@@ -6,6 +6,8 @@
 #             dash_offset: 5
 #             dash_length: 3
 
+#:import common common
+
 <MainMenu>:
     rows: 1
     size_hint_x: 1 if app.debug else 0
@@ -50,13 +52,14 @@
         id: gesture
         canvas:
             Color:
-                rgba: 0, 0, 0, 1
+                rgba: common.RECOGNITION_COLOR
             PushMatrix
             Translate:
                 xy: self.center
             Line:
                 group: 'gesture'
                 points: []
+                width: 2
             PopMatrix
     Label:
         text: "="
