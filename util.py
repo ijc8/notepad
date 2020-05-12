@@ -79,7 +79,6 @@ def align_note(points, is_note, value, line_spacing):
     "Normalize and translate notes so (0, 0) is where the note should be pinned on a staff."
     mins, maxs = get_bounds(points)
     width, height = maxs - mins
-    print('hey!', is_note, value, line_spacing)
     if is_note:
         # Normalize notes - size of notehead should equal line spacing.
         normalization_factor = (line_spacing / (width / 1.5)) if value == 1/2 else (line_spacing / width)
@@ -87,7 +86,14 @@ def align_note(points, is_note, value, line_spacing):
         # Translate - set (0, 0) to center of notehead.
         points_without_outliers = points[reject_outliers(points[:, 1])]
         center = points_without_outliers.mean(axis=0)
-        return points - center
+        results = points - center
+
+        pitch = is_note
+        if (pitch > 72):
+            print("pitch", pitch)
+            pass
+
+        return results
 
     normalization_factor = line_spacing / min(width, height)
     points = mins + (points - mins) * normalization_factor
