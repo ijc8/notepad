@@ -585,13 +585,20 @@ class NotePadApp(App):
             self.info_popup.open()
             return
 
-        if not path.lower().endswith(".png"):
-            path += ".png"
+        if not path.lower().endswith(".png") and not path.lower().endswith(".wav"):
+            self.export_popup.dismiss()
+            self.info_popup.text = "Filename must end with png or wav extension"
+            self.info_popup.open()
+            return
 
         if not path.lower().startswith("export/"):
             path = "export/" + path
 
-        self.surface.export_to_png(path)
+        if path.lower().endswith(".png"):
+            self.surface.export_to_png(path)
+        elif path.lower().endswith(".wav"):
+            exit("Not implemented")
+            pass
 
         self.export_popup.dismiss()
         self.info_popup.text = "Exported to a file"
