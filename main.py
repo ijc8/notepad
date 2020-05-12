@@ -603,6 +603,26 @@ class NotePadApp(App):
         self.seq.timer(time=self.play_start_tick + total_duration, dest=done_playing_callback)
         return total_duration
 
+    def export_to_wav(self, path):
+        # Is it a hack? You'd better believe it.
+        backups = (self.play_pos, self.seq, self.fs, self.sfid, self.synthID)
+        self.seq = fluidsynth.Sequencer(time_scale=self.time_scale, use_system_timer=False)
+        self.fs = fluidsynth.Synth()
+        self.sfid = self.fs.sfload("FluidR3_GM.sf2")
+        self.synthID = self.seq.register_fluidsynth(self.fs)
+        sr = 44100
+        duration = int(self.play() / self.time_scale * sr)
+        chunk_size = int(sr * 60 / self.tempo / 2)
+        with wave.open(path, 'wb') as wav:
+            wav.setnchannels(2)
+            wav.setsampwidth(2)
+            wav.setframerate(sr)
+            for i in range(int(np.ceil(duration / chunk_size))):
+                self.seq.process(int(chunk_size / sr * 1000))
+                chunk = self.fs.get_samples(chunk_size)
+                wav.writeframes(chunk)
+        (self.play_pos, self.seq, self.fs, self.sfid, self.synthID) = backups
+
     def save_to_file(self, path):
         surface = self.surface.serialize()
         with open(path, "wb") as data_file:
@@ -676,8 +696,7 @@ class NotePadApp(App):
         if path.lower().endswith(".png"):
             self.surface.export_to_png(path)
         elif path.lower().endswith(".wav"):
-            exit("Not implemented")
-            pass
+            self.export_to_wav(path)
 
         self.export_popup.dismiss()
         self.info_popup.text = "Exported to a file"
