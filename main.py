@@ -218,6 +218,8 @@ class NotePadState:
         clef_suffix = "clef"
         instrument_prefix = "instrument-"
         chord_prefix = "chord-"
+        note_suffix = "note"
+        rest_suffix = "rest"
 
         name = best["name"]
         if util.is_unrecognized_gesture(best["name"], g, surface):
@@ -248,7 +250,7 @@ class NotePadState:
             chord = name[len(chord_prefix):]
             staff = state.get_closest_staff(y)
             staff.chords.append((x, chord))
-        elif name.endswith("note"):
+        elif name.endswith(note_suffix):
             # BEGIN: Uncomment to visualize notehead identification.
             # center = points.mean(axis=0)
             points = points[util.reject_outliers(points[:, 1])]
@@ -266,11 +268,22 @@ class NotePadState:
             x, y = points.mean(axis=0)
             staff = state.get_closest_staff(y)
             pitch = staff.get_closest_pitch(y)
-            staff.notes.append(Note(pitch, durations[name[:-4]], x))
-        elif name.endswith("rest"):
+            staff.notes.append(Note(pitch, durations[name[:-len(note_suffix)]], x))
+        elif name.endswith(rest_suffix):
             staff = state.get_closest_staff(y)
             pitch = staff.get_closest_pitch(y)
-            staff.notes.append(Note(0, durations[name[:-4]], x))
+            staff.notes.append(Note(0, durations[name[:-len(rest_suffix)]], x))
+        elif name == "eighthpair":
+            # Special case to support the most common form of beaming.
+            # Let's just split it in the middle and process each half as a note.
+            left_half = points[points[:, 0] < x]
+            right_half = points[points[:, 0] >= x]
+            for points in (left_half, right_half):
+                points = points[util.reject_outliers(points[:, 1])]
+                x, y = points.mean(axis=0)
+                staff = state.get_closest_staff(y)
+                pitch = staff.get_closest_pitch(y)
+                staff.notes.append(Note(pitch, durations["eighth"], x))
 
 
 # Manages current interaction mode, maintains "surface-level" undo and redo history.
