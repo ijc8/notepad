@@ -73,7 +73,7 @@ def extract_rhythm(audio, sr, bpm, quantization_unit=0.5, verbose=False):
         ax0.vlines(onsets, 0, 2)
         ax1.set_title('Quantized Events')
         ax1.vlines((out + beats[0]) / (bpm / 60), 0, 1)
-        ax2.set_title(f'Beats (confidence = {confidence})')
+        ax2.set_title(f'Beats')
         ax2.vlines(ticks, 0, 1)
         plt.show()
 
@@ -124,7 +124,6 @@ def extract_melody(audio, sr, bpm, quantization_unit=0.5, verbose=False):
     group_pitch = None
     print(ticks)
     for start, end in zip(ticks, ticks[1:]):
-        print('???', start, end)
         window = pitches[int(start * sr / hop_size):int(end * sr / hop_size)]
         valid = window > 0
         window = window[valid]
@@ -141,7 +140,6 @@ def extract_melody(audio, sr, bpm, quantization_unit=0.5, verbose=False):
                 group_duration = start - group_start
                 if group_duration:
                     thing = (group_start * (bpm / 60), group_duration * (bpm / 60), group_pitch)
-                    print('THE THING I AM APPENDING IS', thing)
                     notes.append(thing)
             group_pitch = ip
             group_start = start
@@ -150,9 +148,8 @@ def extract_melody(audio, sr, bpm, quantization_unit=0.5, verbose=False):
         group_duration = start - group_start
         if group_duration:
             thing = (group_start * (bpm / 60), group_duration * (bpm / 60), group_pitch)
-            print('THE THING I AM APPENDING IS', thing)
             notes.append(thing)
-    print('quantized notes', notes)
+    # print('quantized notes', notes)
     quantized_notes = notes
 
     if verbose:

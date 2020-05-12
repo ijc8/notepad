@@ -617,7 +617,7 @@ class NotePadApp(App):
         self.synthID = self.seq.register_fluidsynth(self.fs)
         sr = 44100
         duration = int(self.play() / self.time_scale * sr)
-        chunk_size = int(sr * 60 / self.tempo / 2)
+        chunk_size = int(sr * 60 / self.tempo / 4)
         with wave.open(path, 'wb') as wav:
             wav.setnchannels(2)
             wav.setsampwidth(2)
@@ -749,7 +749,7 @@ class NotePadApp(App):
             # Bizarrely, this cannot accept the value 0 (it's replaced by None).
             update_callback = self.seq.register_client(
                 name=f"record_update_callback",
-                callback=lambda a, b, c, idx: Clock.schedule_once(lambda dt: self.update_record_signifiers(idx)),
+                callback=lambda a, b, c, idx: self.update_record_signifiers(idx),
                 data=i + 1,
             )
             self.seq.timer(time=time, dest=update_callback, absolute=False)
