@@ -132,6 +132,8 @@ class Staff:
     }
     def __init__(self, surface, idx, clef):
         self.idx = idx
+        # TODO less duplication
+        self.line_spacing = surface.line_spacing
         self.lines = [surface.get_height(idx, l/2) for l in range(0, 9)]
         self.y = surface.get_height(idx, 2)
         self.clef = clef
@@ -139,6 +141,14 @@ class Staff:
         self.notes = []
         # List of tuples (x, chord_name).
         self.chords = []
+
+    def get_next_note_x(self):
+        if len(self.notes) == 0:
+            return 20
+
+        bar_size = 12 * self.line_spacing
+        note_padding = (bar_size * self.notes[-1].duration) / 2
+        return self.notes[-1].x + note_padding
 
     def get_closest_line(self, y):
         return min(range(len(self.lines)), key=lambda l: np.abs(self.lines[l] - y))
@@ -463,8 +473,8 @@ class NotePadApp(App):
                 result = util.ResultWrapper(dollarResult)
                 result._gesture_obj = g
                 self.recognition_memo[g.ids] = result
+                self.history.add_recognizer_result(result)
 
-            # self.history.add_recognizer_result(result)
             NotePadState.handle_recognition_result(self.state, self.surface, result)
 
     def start_loop(self):
@@ -755,15 +765,6 @@ class NotePadApp(App):
             f.close()
             print(f"saved recording to {outfile}.")
 
-    # TODO: move to Staff and fix up
-    def calculate_x_start(self):
-        if len(self.state.notes) == 0:
-            return 20
-
-        bar_size = 12 * self.surface.line_spacing
-        note_padding = (bar_size * self.state.notes[-1].duration) / 2
-        return self.state.notes[-1].x + note_padding
-
     def generate_group_id(self):
         self.group_id_counter += 1
         return "transcription group {}".format(self.group_id_counter)
@@ -788,10 +789,10 @@ class NotePadApp(App):
             melody.append((start, end - start, 64))
         print(melody)
         group_id = self.generate_group_id()
-        xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
-        notes = [
-            Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)
-        ]
+        xs = self.surface.draw_melody(2, self.state.staves[2].get_next_note_x(), melody, group_id)
+        # notes = [
+        #     Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)
+        # ]
         # TODO: add StrokeContainers to StrokeSurface
 
     def transcribe_melody(self, audio, sr):
@@ -812,10 +813,10 @@ class NotePadApp(App):
         melody = [(s, v, get_in_range(p) if p else 0) for s, v, p in melody]
         print(melody)
         group_id = self.generate_group_id()
-        xs = self.surface.draw_melody(0, self.calculate_x_start(), melody, group_id)
-        notes = [
-            Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)
-        ]
+        xs = self.surface.draw_melody(0, self.state.staves[0].get_next_note_x(), melody, group_id)
+        # notes = [
+        #     Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)
+        # ]
 
         # TODO add StrokeContainers to StrokeSurface
 
