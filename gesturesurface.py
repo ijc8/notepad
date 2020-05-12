@@ -144,8 +144,7 @@ class StrokeSurface(FloatLayout):
         super().__init__(**kwargs)
         # A map of Touch ID to StrokeContainer objects (all strokes on the surface)
         self._strokes = {}
-        self.undo_history = []
-        self.redo_history = []
+        self.clear_history()
         self.color = [0., 0., 0.]
         self.register_event_type('on_canvas_change')
         self._mode = "write"
@@ -181,8 +180,7 @@ class StrokeSurface(FloatLayout):
         }
 
     def populate(self, obj):
-        self.undo_history = []
-        self.redo_history = []
+        self.clear_history()
 
         self.artificial_id = obj['artificial_id']
         self.color = obj['color']
@@ -356,10 +354,6 @@ class StrokeSurface(FloatLayout):
         self.canvas.add(Color(col[0], col[1], col[2], mode='rgb', group=g.id))
         self.canvas.add(g._stroke)
         self.dispatch('on_canvas_change')
-
-    def clear_history(self):
-        self.undo_history = []
-        self.redo_history = []
 
     def clear_redo_history(self):
         self.redo_history = []
