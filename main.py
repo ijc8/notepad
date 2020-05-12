@@ -127,10 +127,13 @@ class Staff:
     "Relevant state for a single Staff. Helper for NotePadState."
 
     CLEF_PITCHES = {
-        'treble': [64, 65, 67, 69, 71, 72, 74, 76, 77],
-        'bass': [43, 45, 47, 48, 50, 52, 53, 55, 57],
-        # TODO figure out correct values for standard drum notation
-        'rhythm': [43, 45, 47, 48, 50, 52, 53, 55, 57],
+        'treble': [62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79],
+        'bass': [41, 43, 45, 47, 48, 50, 52, 53, 55, 57, 59],
+        # these are placed to correspond to standard notation
+        # bass drum = 35, floor tom = 41, snare = 38, hi mod tom = 48, ride = 51, closed hi hat = 42
+        # I filled in the rest with whatever I wanted:
+        # cowbell = 56, tambourine = 54, claves = 75, vibraslap = 58, crash = 49
+        'rhythm': [56, 54, 35, 75, 41, 58, 38, 49, 48, 51, 42],
     }
 
     # Default instruments for each clef; can be overriden by specifying the instrument.
@@ -143,7 +146,7 @@ class Staff:
         self.idx = idx
         # TODO less duplication
         self.line_spacing = surface.line_spacing
-        self.lines = [surface.get_height(idx, l/2) for l in range(0, 9)]
+        self.lines = [surface.get_height(idx, l/2) for l in range(-1, 10)]
         self.y = surface.get_height(idx, 2)
         self.clef = clef
         self.instrument = None
