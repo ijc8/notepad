@@ -161,7 +161,8 @@ class Staff:
 
     def get_next_note_x(self):
         if len(self.notes) == 0:
-            return 60
+            # TODO: eliminate magic number
+            return 210
 
         bar_size = 12 * self.line_spacing
         note_padding = (bar_size * self.notes[-1].duration) / 2
@@ -302,7 +303,7 @@ class NotePadSurface(StrokeSurface):
 
     def get_points(self, staff_number, line_number):
         height = self.get_height(staff_number, line_number)
-        return [0, height, self.size[0], height]
+        return [150, height, self.size[0] - 50, height]
 
     def on_touch_down(self, touch):
         if self.mode == "pan":
