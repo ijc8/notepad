@@ -1,4 +1,3 @@
-audiostream==0.2
 certifi==2020.4.5.1
 chardet==3.0.4
 Cython==0.29.17
