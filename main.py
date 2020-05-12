@@ -111,14 +111,65 @@ class NotePadExportPopup(Popup):
 # - NotePadState represents the internal state - staves, notes, chords, instruments.
 #   This should be entirely derivable from the NotePadSurface, and should never go out of sync.
 
-class NotePadState:
-    def __init__(self):
-        self.reset()
 
-    def reset(self):
+class Note:
+    def __init__(self, pitch, duration, x):
+        self.pitch = pitch
+        self.duration = duration
+        # Not sure if this should be here or in Staff.
+        self.x = x
+
+    def __repr__(self):
+        return f"Note({self.pitch}, {self.duration}, {self.x})"
+
+
+class Staff:
+    "Relevant state for a single Staff. Helper for NotePadState."
+
+    CLEF_PITCHES = {
+        'treble': [64, 65, 67, 69, 71, 72, 74, 76, 77],
+        'bass': [43, 45, 47, 48, 50, 52, 53, 55, 57],
+    }
+    def __init__(self, surface, idx, clef):
+        self.idx = idx
+        self.lines = [surface.get_height(idx, l/2) for l in range(0, 9)]
+        self.y = surface.get_height(idx, 2)
+        self.clef = clef
+        self.instrument = 'piano'
         self.notes = []
-        self.staff_chords = [[], []]
+        # List of tuples (x, chord_name).
+        self.chords = []
 
+    def get_closest_line(self, y):
+        return min(range(len(self.lines)), key=lambda l: np.abs(self.lines[l] - y))
+
+    def get_closest_pitch(self, y):
+        return Staff.CLEF_PITCHES[self.clef][len(self.lines) - 1 - self.get_closest_line(y)]
+
+    # Returns list of notes with active chords.
+    def get_notes(self):
+        chord_idx = 0
+        active_chord = None
+        out = []
+        self.notes.sort(key=lambda note: note.x)
+        for note in self.notes:
+            # Advance to next chord.
+            while chord_idx < len(self.chords) and self.chords[chord_idx][0] < note.x:
+                chord_idx += 1
+                active_chord = self.chords[chord_idx - 1][1]
+            out.append((active_chord, note))
+        return out
+
+
+class NotePadState:
+    def __init__(self, surface):
+        self.staves = []
+        self.staves.append(Staff(surface, 0, 'treble'))
+        self.staves.append(Staff(surface, 1, 'bass'))
+        self.staves.append(Staff(surface, 2, 'rhythm'))
+
+    def get_closest_staff(self, y):
+        return min(self.staves, key=lambda s: np.abs(s.y - y))
 
     # This will process the recognition of a single area in the canvas.
     # and modify the internal state.
@@ -126,39 +177,45 @@ class NotePadState:
     def handle_recognition_result(state, surface, result):
         best = result.best
         g = result._gesture_obj
+
+        # A bit ad-hoc; oh well.
+        clef_suffix = "clef"
         instrument_prefix = "instrument-"
         chord_prefix = "chord-"
 
-        recognized_name = best["name"]
+        name = best["name"]
         if util.is_unrecognized_gesture(best["name"], g, surface):
             # No match or ignored. Leave it onscreen in case it's for the user's benefit.
             util.set_color_rgba(surface, g, RED)
-            recognized_name = "Not Recognized"
+            return
 
         # TODO: more feedback?
-        print(recognized_name)
+        print(name)
         points = np.array(sum(g.strokes, []))
+        x, y = points.mean(axis=0)
 
-        if recognized_name == "trebleclef" or recognized_name == "bassclef" or recognized_name == "barline":
-            util.set_color_rgba(surface, g, BLACK)
+        # Hacky way to change note color to black for registered note.
+        util.set_color_rgba(surface, g, BLACK)
+
+        if name == "barline":
+            # Currently, we do nothing for this.
             pass
-        elif recognized_name.startswith(instrument_prefix):
-            instrument = recognized_name[len(instrument_prefix):]
-            y = points[:,1].mean()
-            staff = min((0, 1), key=lambda s: np.abs(surface.get_height(s, 4) - y))
-            # TODO: add real Staff class instead of doing this ad-hoc stuff.
-            # TODO: fix instrument selection
-            # self.fs.program_select(staff, self.sfid, *instruments[instrument])
-        elif recognized_name.startswith(chord_prefix):
-            chord = recognized_name[len(chord_prefix):]
-            x, y = points.mean(axis=0)
-            staff = min((0, 1), key=lambda s: np.abs(surface.get_height(s, 4) - y))
-            # TODO: add real Staff class instead of doing this ad-hoc stuff.
-            state.staff_chords[staff].append((x, chord))
-        elif recognized_name.endswith("note"):
-            center = points.mean(axis=0)
+        elif name.endswith(clef_suffix):
+            clef = name[:-len(clef_suffix)]
+            staff = state.get_closest_staff(y)
+            staff.clef = clef
+        elif name.startswith(instrument_prefix):
+            instrument = name[len(instrument_prefix):]
+            staff = state.get_closest_staff(y)
+            staff.instrument = instrument
+        elif name.startswith(chord_prefix):
+            chord = name[len(chord_prefix):]
+            staff = state.get_closest_staff(y)
+            staff.chords.append((x, chord))
+        elif name.endswith("note"):
+            # BEGIN: Uncomment to visualize notehead identification.
+            # center = points.mean(axis=0)
             points = points[util.reject_outliers(points[:, 1])]
-            # TODO: temp visualization
             # new_center = points.mean(axis=0)
             # radius = 5
             # if self.debug:
@@ -167,41 +224,17 @@ class NotePadState:
             #         Ellipse(pos=center - radius, size=(radius * 2, radius * 2))
             #         Color(rgba=BLACK)
             #         Ellipse(pos=new_center - radius, size=(radius * 2, radius * 2))
-            # end tmp
+            # END
 
+            # Compute notehead center, post-outlier rejection.
             x, y = points.mean(axis=0)
-            treble_pitches = [64, 65, 67, 69, 71, 72, 74, 76, 77][::-1]
-            bass_pitches = [43, 45, 47, 48, 50, 52, 53, 55, 57][::-1]
-            pitches_per_staff = [treble_pitches, bass_pitches]
-            # TODO: don't do this the dumb way, and move this functionality to NotePadSurface
-            lines = range(0, 9)
-            staves = [0, 1]
-            product = itertools.product(staves, lines)
-            staff, line = min(
-                product,
-                key=lambda p: np.abs(surface.get_height(p[0], p[1] / 2) - y),
-            )
-            pitch = pitches_per_staff[staff][line]
-            note = Note(pitch, durations[recognized_name[:-4]], x, staff)
-            print(note)
-            state.notes.append(note)
-            state.notes.sort(key=lambda note: note.x)
-
-            # Hacky way to change note color to black once it's registered.
-            util.set_color_rgba(surface, g, BLACK)
-        elif recognized_name.endswith("rest"):
-            x, y = points.mean(axis=0)
-            staves = [0, 1]
-            staff = min(
-                staves, key=lambda s: np.abs(surface.get_height(s, 4.5) - y)
-            )
-            note = Note(0, durations[recognized_name[:-4]], x, staff)
-            print(note)
-            state.notes.append(note)
-            state.notes.sort(key=lambda note: note.x)
-
-            # Hacky way to change rest color to black once it's registered.
-            util.set_color_rgba(surface, g, BLACK)
+            staff = state.get_closest_staff(y)
+            pitch = staff.get_closest_pitch(y)
+            staff.notes.append(Note(pitch, durations[name[:-4]], x))
+        elif name.endswith("rest"):
+            staff = state.get_closest_staff(y)
+            pitch = staff.get_closest_pitch(y)
+            staff.notes.append(Note(0, durations[name[:-4]], x))
 
 
 # Manages current interaction mode, maintains "surface-level" undo and redo history.
@@ -347,18 +380,6 @@ class NotePadContainer(ScatterPlane):
         super().on_touch_move(touch)
 
 
-class Note:
-    def __init__(self, pitch, duration, x, staff):
-        self.pitch = pitch
-        self.duration = duration
-        # TODO: restructure things so this information is higher up (namely at the Staff level).
-        self.x = x
-        self.staff = staff
-
-    def __repr__(self):
-        return f"Note({self.pitch}, {self.duration}, {self.x}, {self.staff})"
-
-
 recognition_memo = {}
 
 class StrokeGroup:
@@ -399,7 +420,7 @@ class NotePadApp(App):
         self.manager.current = "database"
 
     def interpret_canvas(self, surface):
-        self.state.reset()
+        self.state = NotePadState(surface)
         strokes = self.surface.get_strokes()
         groups = [StrokeGroup([stroke]) for stroke in strokes]
 
@@ -472,56 +493,58 @@ class NotePadApp(App):
         if self.playing:
             return
         self.playing = True
-        stave_times = [0, 0]
+        stave_times = [0] * len(self.state.staves)
         self.play_start_tick = self.seq.get_tick()
 
-        for note in self.state.notes:
-            t_duration = self.beats_to_ticks(note.duration)
-            time = stave_times[note.staff] - self.play_pos
-            if note.pitch > 0 and time >= 0:
-                time += self.play_start_tick
-                self.seq.note_on(
-                    time=int(time),
-                    channel=note.staff,
-                    key=note.pitch,
-                    dest=self.synthID,
-                    velocity=127,
-                )
-                self.seq.note_off(
-                    time=int(time + t_duration),
-                    channel=note.staff,
-                    key=note.pitch,
-                    dest=self.synthID,
-                )
-                # Note that this is the nearest chord *to the left* of the note; the preceding chord holds until the next one replaces it.
-                print(self.state.staff_chords[note.staff])
-                preceding_chords = [c for c in self.state.staff_chords[note.staff] if c[0] < note.x]
-                if preceding_chords:
-                    preceding_chords.sort(key=lambda c: c[0])
-                    active_chord = preceding_chords[-1][1]
-                    for pitch in chords[active_chord]:
-                        self.seq.note_on(
-                            time=int(time),
-                            channel=note.staff,
-                            key=pitch,
-                            dest=self.synthID,
-                            velocity=127,
-                        )
-                        self.seq.note_off(
-                            time=int(time + t_duration),
-                            channel=note.staff,
-                            key=pitch,
-                            dest=self.synthID,
-                        )
-            stave_times[note.staff] += t_duration
+        total_duration = 0
+        for staff in self.state.staves:
+            # Configure instrument
+            channel = staff.idx
+            self.fs.program_select(channel, self.sfid, *instruments[staff.instrument])
+            # Play notes in staff
+            time = -self.play_pos
+            for active_chord, note in staff.get_notes():
+                duration = self.beats_to_ticks(note.duration)
+                if note.pitch > 0 and time >= 0:
+                    play_time = time + self.play_start_tick
+                    self.seq.note_on(
+                        time=int(play_time),
+                        channel=channel,
+                        key=note.pitch,
+                        dest=self.synthID,
+                        velocity=127,
+                    )
+                    self.seq.note_off(
+                        time=int(play_time + duration),
+                        channel=channel,
+                        key=note.pitch,
+                        dest=self.synthID,
+                    )
+                    # Note that this is the nearest chord *to the left* of the note; the preceding chord holds until the next one replaces it.
+                    if active_chord:
+                        for pitch in chords[active_chord]:
+                            self.seq.note_on(
+                                time=int(play_time),
+                                channel=channel,
+                                key=pitch,
+                                dest=self.synthID,
+                                velocity=127,
+                            )
+                            self.seq.note_off(
+                                time=int(play_time + duration),
+                                channel=channel,
+                                key=pitch,
+                                dest=self.synthID,
+                            )
+                time += duration
+            total_duration = max(total_duration, time)
 
-        duration = max(stave_times)
         def done_playing(*_):
             self.playing = False
             self.play_pos = 0
         done_playing_callback = self.seq.register_client(name=f"done_playng", callback=done_playing)
-        self.seq.timer(time=self.play_start_tick + duration, dest=done_playing_callback)
-        return duration
+        self.seq.timer(time=self.play_start_tick + total_duration, dest=done_playing_callback)
+        return total_duration
 
     def save_to_file(self, path):
         surface = self.surface.serialize()
@@ -553,7 +576,7 @@ class NotePadApp(App):
         self.load_from_file('saved/initial.np')
 
     def _clear(self):
-        self.state.reset()
+        self.state = NotePadState(self.surface)
         self.surface.clear()
         self.surface.canvas.clear()
         self.recognition_memo = {}
@@ -718,7 +741,7 @@ class NotePadApp(App):
             f.close()
             print(f"saved recording to {outfile}.")
 
-    # TODO move this
+    # TODO: move to Staff and fix up
     def calculate_x_start(self):
         if len(self.state.notes) == 0:
             return 20
@@ -827,7 +850,6 @@ class NotePadApp(App):
         # to some inexplicable rendering bugs on my particular system
         self.manager = ScreenManager(transition=SlideTransition(duration=0.15))
 
-        self.state = NotePadState()
         self.recognizer = Recognizer()
 
         # Setup the GestureSurface and bindings to our Recognizer
@@ -911,7 +933,7 @@ class NotePadApp(App):
             Color(1, 0, 0, 1)
             self.plot = Line(points = [(x/88200 * 100, 100 * np.sin(x / 1000.) + 600) for x in range(0, 88200)])
 
-
+        self.state = NotePadState(self.surface)
         self.clear()
 
         # Show Tutorial as the initial page.
