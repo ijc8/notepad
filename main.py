@@ -31,7 +31,7 @@ import fluidsynth
 import wave
 import pickle
 import copy
-import cProfile
+# import cProfile
 
 
 # TODO: mobile support for recording, transcription
@@ -269,10 +269,12 @@ class NotePadState:
             staff = state.get_closest_staff(y)
             pitch = staff.get_closest_pitch(y)
             staff.notes.append(Note(pitch, durations[name[:-len(note_suffix)]], x))
+            print(staff.notes[-1])
         elif name.endswith(rest_suffix):
             staff = state.get_closest_staff(y)
             pitch = staff.get_closest_pitch(y)
             staff.notes.append(Note(0, durations[name[:-len(rest_suffix)]], x))
+            print(staff.notes[-1])
         elif name == "eighthpair":
             # Special case to support the most common form of beaming.
             # Let's just split it in the middle and process each half as a note.
@@ -284,6 +286,7 @@ class NotePadState:
                 staff = state.get_closest_staff(y)
                 pitch = staff.get_closest_pitch(y)
                 staff.notes.append(Note(pitch, durations["eighth"], x))
+                print(staff.notes[-1])
 
 
 # Manages current interaction mode, maintains "surface-level" undo and redo history.
@@ -496,9 +499,11 @@ class NotePadApp(App):
 
                 dollarResult1 = self.recognizer.recognize(util.convert_to_dollar(g.strokes))
                 dollarResult2 = self.recognizer.recognize(util.convert_to_dollar(g.strokes, flip=True))
+                print(dollarResult1, dollarResult2)
 
                 # Take the best one
-                if (dollarResult1[1] < dollarResult2[1]):
+                # Only notes can be flipped
+                if (dollarResult1[1] < dollarResult2[1]) and (dollarResult2[0].endswith('note') or dollarResult2[0] == 'eighthpair'):
                     dollarResult = dollarResult2
                 else:
                     dollarResult = dollarResult1
@@ -997,8 +1002,8 @@ class NotePadApp(App):
 
 
 if __name__ in ("__main__", "__android__"):
-    profile = cProfile.Profile()
-    profile.enable()
+    # profile = cProfile.Profile()
+    # profile.enable()
     NotePadApp().run()
-    profile.disable()
-    profile.dump_stats('notepad.profile')
+    # profile.disable()
+    # profile.dump_stats('notepad.profile')
