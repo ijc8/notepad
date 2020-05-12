@@ -70,14 +70,17 @@ def align_note(points, is_note, value, line_spacing):
     print('hey!', is_note, value, line_spacing)
     if is_note:
         # Normalize notes - size of notehead should equal line spacing.
-        normalization_factor = line_spacing / width
+        normalization_factor = (line_spacing / (width / 1.5)) if value == 1/2 else (line_spacing / width)
         points = mins + (points - mins) * normalization_factor
-
         # Translate - set (0, 0) to center of notehead.
         points_without_outliers = points[reject_outliers(points[:, 1])]
         center = points_without_outliers.mean(axis=0)
         return points - center
-    elif value == 4:
+
+    normalization_factor = line_spacing / min(width, height)
+    points = mins + (points - mins) * normalization_factor
+
+    if value == 4:
         # For whole rests, top should be aligned to y = 0.
         return points - points.mean(axis=0) - line_spacing / 2
     elif value == 2:
