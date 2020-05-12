@@ -202,6 +202,9 @@
     IconButton:
         image: 'icons/open.png'
         on_press: app.load_popup.open()
+    IconButton:
+        image: 'icons/save.png'
+        on_press: app.export_popup.open()
 
 
 <NotePadScreen>:
@@ -371,6 +374,35 @@
             height: 40
         Button:
             id: save_btn
+            text: 'Save'
+            size_hint: 1, None
+            height: 45
+        Button:
+            id: cancel_btn
+            text: 'Cancel'
+            size_hint: 1, None
+            height: 45
+            on_press: root.dismiss()
+
+<NotePadExportPopup>:
+    title: 'Specify filename'
+    auto_dismiss: True
+    size_hint: None, None
+    size: 400, 400
+    GridLayout:
+        cols: 1
+        spacing: 10
+        padding: 10
+        rows_minimum: {0: 100}
+        Label:
+            text: 'Export to PNG'
+        TextInput:
+            id: filename
+            multiline: False
+            size_hint: 1, None
+            height: 40
+        Button:
+            id: export_btn
             text: 'Save'
             size_hint: 1, None
             height: 45

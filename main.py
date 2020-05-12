@@ -97,8 +97,10 @@ class NotePadScreen(Screen):
 class NotePadSavePopup(Popup):
     pass
 
-
 class NotePadLoadPopup(Popup):
+    pass
+
+class NotePadExportPopup(Popup):
     pass
 
 # Notes:
@@ -575,6 +577,26 @@ class NotePadApp(App):
         self.surface.redraw_all()
         self.interpret_canvas(self.surface)
 
+    def export(self, *l):
+        path = self.export_popup.ids.filename.text
+        if not path:
+            self.export_popup.dismiss()
+            self.info_popup.text = "Missing filename"
+            self.info_popup.open()
+            return
+
+        if not path.lower().endswith(".png"):
+            path += ".png"
+
+        if not path.lower().startswith("export/"):
+            path = "export/" + path
+
+        self.surface.export_to_png(path)
+
+        self.export_popup.dismiss()
+        self.info_popup.text = "Exported to a file"
+        self.info_popup.open()
+
     def update_record_signifiers(self, idx):
         idx -= 1  # fluidsynth scheduler workaround
         if idx < 4:
@@ -872,8 +894,10 @@ class NotePadApp(App):
 
         self.save_popup = NotePadSavePopup()
         self.load_popup = NotePadLoadPopup()
+        self.export_popup = NotePadExportPopup()
         self.save_popup.ids.save_btn.bind(on_press=self.save)
         self.load_popup.ids.filechooser.bind(on_submit=self.load)
+        self.export_popup.ids.export_btn.bind(on_press=self.export)
         self.info_popup = InformationPopup()
 
         with self.surface.canvas:
