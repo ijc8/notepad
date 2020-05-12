@@ -689,7 +689,7 @@ class NotePadApp(App):
             self.surface_screen.canvas.after.get_group("recording")[5].a = 1
 
     # TODO: we're edging into callback hell here, so maybe it's time to bust out async/await.
-    def record(self, callback, save=False):
+    def record(self, callback, melodic, save=False):
         if not is_desktop:
             callback(np.zeros(44100 * 2), 44100)
             return
@@ -720,7 +720,7 @@ class NotePadApp(App):
                 self.seq.note_on(
                     time=time,
                     absolute=False,
-                    channel=0,
+                    channel=9 if melodic else 10,
                     key=60,
                     dest=self.synthID,
                     velocity=80,
@@ -789,10 +789,10 @@ class NotePadApp(App):
         return "transcription group {}".format(self.group_id_counter)
 
     def record_rhythm(self):
-        self.record(self.transcribe_rhythm)
+        self.record(self.transcribe_rhythm, False)
 
     def record_melody(self):
-        self.record(self.transcribe_melody)
+        self.record(self.transcribe_melody, True)
 
     def transcribe_rhythm(self, audio, sr):
         if not is_desktop:
@@ -805,7 +805,7 @@ class NotePadApp(App):
         # HACK for prototype demo
         melody = []
         for (start, end) in zip(rhythm, rhythm[1:] + [4]):
-            melody.append((start, end - start, 64))
+            melody.append((start, end - start, 72))
         print(melody)
         group_id = self.generate_group_id()
         self.surface.draw_melody(2, self.state.staves[2].get_next_note_x(), melody, group_id)
@@ -864,8 +864,9 @@ class NotePadApp(App):
         if self.sfid < 0:
             exit("Couldn't load soundfont.")
 
-        self.fs.program_select(0, self.sfid, 0, 0)
-        self.fs.program_select(1, self.sfid, 0, 0)
+        # Setup for recording prompts:
+        self.fs.program_select(9, self.sfid, *instruments["bass"])
+        self.fs.program_select(10, self.sfid, *instruments["drum"])
         self.synthID = self.seq.register_fluidsynth(self.fs)
 
         self.group_id_counter = 0
@@ -940,9 +941,6 @@ class NotePadApp(App):
         def on_keyboard(instance, key, scancode, codepoint, modifiers):
             if codepoint == "d":
                 self.debug = not self.debug
-                print('Canvas state:')
-                for vec in self.surface.get_strokes():
-                    print(vec)
 
         Window.bind(on_keyboard=on_keyboard)
 

@@ -199,11 +199,11 @@
         image: 'icons/clear.png'
         on_press: app.clear()
     IconButton:
-        image: 'icons/save.png'
-        on_press: app.save_popup.open()
-    IconButton:
         image: 'icons/open.png'
         on_press: app.load_popup.open()
+    IconButton:
+        image: 'icons/save.png'
+        on_press: app.save_popup.open()
     IconButton:
         image: 'icons/export.png'
         on_press: app.export_popup.open()
@@ -286,6 +286,7 @@
             id: surface
 
 
+# TODO: This is mostly (entirely?) defunct and should be removed.
 <MultistrokeAppSettings>:
     pos_hint: {'top': 1}
 
