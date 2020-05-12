@@ -90,9 +90,8 @@ def align_note(points, is_note, value, line_spacing):
 
         pitch = is_note
         if (pitch > 72):
-            print("pitch", pitch)
-            pass
-
+            # Reverse the stem
+            results = -results
         return results
 
     normalization_factor = line_spacing / min(width, height)
