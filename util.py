@@ -34,11 +34,23 @@ def reject_outliers(points, acceptance_threshold=2, max_rounds=10, verbose=False
 
     return indices
 
-def convert_to_dollar(g_vectors):
+def convert_to_dollar(g_vectors, flip=False):
     points = []
+
+    # Finding the maximum val so that when we turn 180 degrees, there's no negative values.
+    # I am sure there's an efficient numpy method
+    maximum_val = -np.inf
     for idx, stroke in enumerate(g_vectors):
         for point in stroke:
-            points.append(Point(point[0], point[1], idx))
+            maximum_val = max(maximum_val, point[0])
+            maximum_val = max(maximum_val, point[1])
+
+    for idx, stroke in enumerate(g_vectors):
+        for point in stroke:
+            if flip:
+                points.append(Point(-1 * point[0] + maximum_val, -1 * point[1] + maximum_val, idx))
+            else:
+                points.append(Point(point[0], point[1], idx))
 
     return points
 

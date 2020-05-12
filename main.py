@@ -445,7 +445,17 @@ class NotePadApp(App):
         for g in groups:
             result = self.recognition_memo.get(g.ids, None)
             if not result:
-                dollarResult = self.recognizer.recognize(util.convert_to_dollar(g.strokes))
+                dollarResult = None
+
+                dollarResult1 = self.recognizer.recognize(util.convert_to_dollar(g.strokes))
+                dollarResult2 = self.recognizer.recognize(util.convert_to_dollar(g.strokes, flip=True))
+
+                # Take the best one
+                if (dollarResult1[1] < dollarResult2[1]):
+                    dollarResult = dollarResult2
+                else:
+                    dollarResult = dollarResult1
+
                 result = util.ResultWrapper(dollarResult)
                 result._gesture_obj = g
                 self.recognition_memo[g.ids] = result
