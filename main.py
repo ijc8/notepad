@@ -913,6 +913,9 @@ class NotePadApp(App):
 
 
         self.clear()
+
+        # Show Tutorial as the initial page.
+        self.manager.current = 'tutorial'
         return layout
 
 
