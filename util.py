@@ -129,7 +129,7 @@ def too_far_away_from_staff(gesture, surface):
         for staff_y in surface.heights:
             dist = min(dist, abs(y - staff_y))
 
-    return (surface.size[1] / 22) < dist
+    return (surface.size[1] / 44) < dist
 
 def loaded_id(old_id):
     return f'loaded_id:{old_id}'

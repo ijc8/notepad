@@ -222,7 +222,7 @@ class NotePadState:
         name = best["name"]
         if util.is_unrecognized_gesture(best["name"], g, surface):
             # No match or ignored. Leave it onscreen in case it's for the user's benefit.
-            util.set_color_rgba(surface, g, RED)
+            util.set_color_rgba(surface, g, BLACK)
             return
 
         # TODO: more feedback?
@@ -231,7 +231,7 @@ class NotePadState:
         x, y = points.mean(axis=0)
 
         # Hacky way to change note color to black for registered note.
-        util.set_color_rgba(surface, g, BLACK)
+        util.set_color_rgba(surface, g, (0.1, 0.1, 0.6, 0.8))
 
         if name == "barline":
             # Currently, we do nothing for this.
@@ -808,11 +808,7 @@ class NotePadApp(App):
             melody.append((start, end - start, 64))
         print(melody)
         group_id = self.generate_group_id()
-        xs = self.surface.draw_melody(2, self.state.staves[2].get_next_note_x(), melody, group_id)
-        # notes = [
-        #     Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)
-        # ]
-        # TODO: add StrokeContainers to StrokeSurface
+        self.surface.draw_melody(2, self.state.staves[2].get_next_note_x(), melody, group_id)
 
     def transcribe_melody(self, audio, sr):
         if not is_desktop:
@@ -832,12 +828,7 @@ class NotePadApp(App):
         melody = [(s, v, get_in_range(p) if p else 0) for s, v, p in melody]
         print(melody)
         group_id = self.generate_group_id()
-        xs = self.surface.draw_melody(0, self.state.staves[0].get_next_note_x(), melody, group_id)
-        # notes = [
-        #     Note(pitch, value, x, 0) for (_, value, pitch), x in zip(melody, xs)
-        # ]
-
-        # TODO add StrokeContainers to StrokeSurface
+        self.surface.draw_melody(0, self.state.staves[0].get_next_note_x(), melody, group_id)
 
     def beats_to_ticks(self, beats):
         ticks = self.time_scale / (self.tempo / 60) * beats

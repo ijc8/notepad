@@ -195,8 +195,7 @@ class StrokeSurface(FloatLayout):
 
     def redraw_all(self):
         for id, stroke in self._strokes.items():
-            col = stroke.color
-            self.canvas.add(Color(col[0], col[1], col[2], mode='rgb', group=id))
+            self.canvas.add(Color(*stroke.color, mode='rgba', group=id))
             self.canvas.add(stroke._stroke)
 
 
@@ -267,8 +266,7 @@ class StrokeSurface(FloatLayout):
                     group=id)
         s = StrokeContainer(line)
         self._strokes[id] = s
-        col = s.color
-        self.canvas.add(Color(col[0], col[1], col[2], mode='rgb', group=id))
+        self.canvas.add(Color(*s.color, mode='rgba', group=id))
         self.canvas.add(line)
         self.dispatch('on_canvas_change')
 
@@ -301,7 +299,7 @@ class StrokeSurface(FloatLayout):
                     width=self.line_width,
                     group=id)
 
-        g = StrokeContainer(line, color=col)
+        g = StrokeContainer(line, color=(0, 0, 0, 0.5))
         self._strokes[id] = g
 
         # Create the bounding box Rectangle for the gesture
@@ -317,11 +315,8 @@ class StrokeSurface(FloatLayout):
                     size=(bb['maxx'] - bb['minx'],
                           bb['maxy'] - bb['miny']))
 
-
-        col = g.color
-
         if self.line_width:
-            self.canvas.add(Color(col[0], col[1], col[2], mode='rgb', group=g.id))
+            self.canvas.add(Color(*g.color, mode='rgba', group=g.id))
             self.canvas.add(line)
 
         if self.draw_bbox:
