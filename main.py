@@ -161,7 +161,7 @@ class Staff:
 
     def get_next_note_x(self):
         if len(self.notes) == 0:
-            return 20
+            return 60
 
         bar_size = 12 * self.line_spacing
         note_padding = (bar_size * self.notes[-1].duration) / 2
