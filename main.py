@@ -174,7 +174,7 @@ class NotePadState:
         self.staves = []
         self.staves.append(Staff(surface, 0, 'treble'))
         self.staves.append(Staff(surface, 1, 'bass'))
-        self.staves.append(Staff(surface, 2, 'rhythm'))
+        self.staves.append(Staff(surface, 2, 'treble'))
 
     def get_closest_staff(self, y):
         return min(self.staves, key=lambda s: np.abs(s.y - y))
@@ -255,20 +255,16 @@ class NotePadSurface(StrokeSurface):
         self.lines = []
         self.staff_spacing = self.size[1] / 12
         self.line_spacing = self.size[1] / 96
-        self.total_staff_number = 2
+        self.total_staff_number = 3
 
-        heights = []
+        self.heights = []
         with self.canvas.before:
             Color(rgba=BLACK)
             for staff in range(self.total_staff_number):
                 for line in range(5):
                     points = self.get_points(staff, line)
-                    heights.append(points[1])
+                    self.heights.append(points[1])
                     self.lines.append(Line(points=points))
-
-        heights = np.array(heights)
-        self.height_max = np.max(heights)
-        self.height_min = np.min(heights)
 
     def get_height(self, staff_number, line_number):
         return (

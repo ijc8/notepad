@@ -127,7 +127,7 @@ def too_far_away_from_staff(gesture, surface):
 
     dist = np.inf
     for y in [miny, maxy]:
-        for staff_y in [surface.height_min, surface.height_max]:
+        for staff_y in surface.heights:
             dist = min(dist, abs(y - staff_y))
 
     return (surface.size[1] / 22) < dist
