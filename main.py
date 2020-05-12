@@ -129,6 +129,15 @@ class Staff:
     CLEF_PITCHES = {
         'treble': [64, 65, 67, 69, 71, 72, 74, 76, 77],
         'bass': [43, 45, 47, 48, 50, 52, 53, 55, 57],
+        # TODO figure out correct values for standard drum notation
+        'rhythm': [43, 45, 47, 48, 50, 52, 53, 55, 57],
+    }
+
+    # Default instruments for each clef; can be overriden by specifying the instrument.
+    CLEF_INSTRUMENTS = {
+        'treble': 'piano',
+        'bass': 'piano',
+        'rhythm': 'drum',
     }
     def __init__(self, surface, idx, clef):
         self.idx = idx
@@ -137,10 +146,15 @@ class Staff:
         self.lines = [surface.get_height(idx, l/2) for l in range(0, 9)]
         self.y = surface.get_height(idx, 2)
         self.clef = clef
-        self.instrument = 'piano'
+        self.instrument = None
         self.notes = []
         # List of tuples (x, chord_name).
         self.chords = []
+
+    def get_instrument(self):
+        if self.instrument:
+            return self.instrument
+        return Staff.CLEF_INSTRUMENTS[self.clef]
 
     def get_next_note_x(self):
         if len(self.notes) == 0:
@@ -184,7 +198,7 @@ class NotePadState:
         self.staves = []
         self.staves.append(Staff(surface, 0, 'treble'))
         self.staves.append(Staff(surface, 1, 'bass'))
-        self.staves.append(Staff(surface, 2, 'treble'))
+        self.staves.append(Staff(surface, 2, 'rhythm'))
 
     def get_closest_staff(self, y):
         return min(self.staves, key=lambda s: np.abs(s.y - y))
@@ -523,7 +537,7 @@ class NotePadApp(App):
         for staff in self.state.staves:
             # Configure instrument
             channel = staff.idx
-            self.fs.program_select(channel, self.sfid, *instruments[staff.instrument])
+            self.fs.program_select(channel, self.sfid, *instruments[staff.get_instrument()])
             # Play notes in staff
             time = -self.play_pos
             for active_chord, note in staff.get_notes():
@@ -602,7 +616,6 @@ class NotePadApp(App):
     def _clear(self):
         self.state = NotePadState(self.surface)
         self.surface.clear()
-        self.surface.canvas.clear()
         self.recognition_memo = {}
 
     def load(self, filechooser, *l):
