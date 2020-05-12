@@ -146,6 +146,14 @@ class Staff:
     def get_closest_pitch(self, y):
         return Staff.CLEF_PITCHES[self.clef][len(self.lines) - 1 - self.get_closest_line(y)]
 
+    def set_clef(self, clef):
+        # If the clef changes, fix the pitches of existing notes.
+        for note in self.notes:
+            if note.pitch:
+                pitch_index = Staff.CLEF_PITCHES[self.clef].index(note.pitch)
+                note.pitch = Staff.CLEF_PITCHES[clef][pitch_index]
+        self.clef = clef
+
     # Returns list of notes with active chords.
     def get_notes(self):
         chord_idx = 0
@@ -203,7 +211,7 @@ class NotePadState:
         elif name.endswith(clef_suffix):
             clef = name[:-len(clef_suffix)]
             staff = state.get_closest_staff(y)
-            staff.clef = clef
+            staff.set_clef(clef)
         elif name.startswith(instrument_prefix):
             instrument = name[len(instrument_prefix):]
             staff = state.get_closest_staff(y)
@@ -503,7 +511,6 @@ class NotePadApp(App):
         if self.playing:
             return
         self.playing = True
-        stave_times = [0] * len(self.state.staves)
         self.play_start_tick = self.seq.get_tick()
 
         total_duration = 0
@@ -516,6 +523,7 @@ class NotePadApp(App):
             for active_chord, note in staff.get_notes():
                 duration = self.beats_to_ticks(note.duration)
                 if note.pitch > 0 and time >= 0:
+                    # Play the note.
                     play_time = time + self.play_start_tick
                     self.seq.note_on(
                         time=int(play_time),
@@ -530,7 +538,7 @@ class NotePadApp(App):
                         key=note.pitch,
                         dest=self.synthID,
                     )
-                    # Note that this is the nearest chord *to the left* of the note; the preceding chord holds until the next one replaces it.
+                    # Play the active chord, if any.
                     if active_chord:
                         for pitch in chords[active_chord]:
                             self.seq.note_on(
