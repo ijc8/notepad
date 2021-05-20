@@ -1,5 +1,7 @@
 # notepad
-multimodal music composition / composing music naturally
+multimodal music composition
+
+created by Ian Clester & Mergen Nachin for 6.835 @ MIT
 
 ## Setup
 
